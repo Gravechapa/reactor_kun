@@ -10,9 +10,14 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(EXTERNAL_PROJECTS_DIR "cmake_externalprojects")
 
-############################TGbot#####################################
+############################TGbot####################################
 message("Configure TGbot")
 include("${EXTERNAL_PROJECTS_DIR}/TGBot.cmake")
+#####################################################################
+
+############################Json#####################################
+message("Configure Json")
+include("${EXTERNAL_PROJECTS_DIR}/Json.cmake")
 #####################################################################
 
 message(STATUS "Starting collecting files")
@@ -30,6 +35,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 add_definitions(-DHAVE_CURL)
+
 include_directories(${SOURCE_ROOT}/headers)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -40,14 +46,9 @@ add_executable(${EXECUTABLE} ${SOURCES} ${HEADERS})
 if(MSVC)
     set_target_properties(${EXECUTABLE} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-    
-    target_compile_options(${EXECUTABLE} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/W4 /WX>)
-    
-elseif((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-    target_compile_options(${EXECUTABLE} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -pedantic>)
 endif()
 
-target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot)
+target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl)
 
 
 #############Copies data files to a binary directory####################################

@@ -1,0 +1,11 @@
+{
+"token": "",
+"superUserName": "Gravechapa",
+"proxy": {
+    "type": "socks5",
+    "address": "127.0.0.1",
+    "port": 9050,
+    "user": null,
+    "password": null
+}
+}

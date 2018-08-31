@@ -1,16 +1,15 @@
 #include <iostream>
 #include <tgbot/tgbot.h>
 #include <curl/curl.h>
+#include "headers/Config.hpp"
+
 
 int main()
 {
-    CURL *curl = curl_easy_init();
-    if(curl) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, "socks5://127.0.0.1:9050");
-    }
+    Config config ("configs/config.json");
     TgBot::CurlHttpClient curlClient;
-    curlClient.curlSettings = curl;
-    TgBot::Bot bot("567849458:AAEKzW0s2coYr3chl7koEoil1NSHepgNyMs", curlClient);
+    curlClient.curlSettings = config.getProxy();
+    TgBot::Bot bot(config.getToken(), curlClient);
     bot.getEvents().onCommand("start", [&bot](TgBot::Message::Ptr message) {
         bot.getApi().sendMessage(message->chat->id, "Hi!");
     });
