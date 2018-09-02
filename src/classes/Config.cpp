@@ -2,12 +2,6 @@
 
 Config::Config(std::string configFile)
 {
-    _proxy = curl_easy_init();
-    if(!_proxy)
-        {
-            throw std::runtime_error("Config: can't init curl");
-        }
-
     std::ifstream config(configFile);
     if (!config.is_open())
         {
@@ -95,8 +89,7 @@ Config::Config(std::string configFile)
 
             //TODO: add proxy auth
 
-            std::string fullProxyAddres = proxyType + "://" + proxyAddress + ":" + std::to_string(proxyPort);
-            curl_easy_setopt(_proxy, CURLOPT_PROXY, fullProxyAddres.c_str());
+            _proxyAddress = proxyType + "://" + proxyAddress + ":" + std::to_string(proxyPort);
         }
 }
 
@@ -110,7 +103,7 @@ std::string Config::getSU() const
     return _superUserName;
 }
 
-CURL* Config::getProxy() const
+std::string Config::getProxy() const
 {
-    return _proxy;
+    return _proxyAddress;
 }
