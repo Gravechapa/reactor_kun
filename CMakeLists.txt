@@ -36,6 +36,13 @@ find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 add_definitions(-DHAVE_CURL)
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules" ${CMAKE_MODULE_PATH})
+find_package (SQLite3)
+if (NOT SQLITE3_FOUND)
+    message(FATAL_ERROR "Sqlite not found")
+endif()
+include_directories(${SQLITE3_INCLUDE_DIRS})
+
 include_directories(${SOURCE_ROOT}/headers)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -47,8 +54,7 @@ if(MSVC)
     set_target_properties(${EXECUTABLE} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 endif()
-
-target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl)
+target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl ${SQLITE3_LIBRARIES})
 
 
 #############Copies data files to a binary directory####################################

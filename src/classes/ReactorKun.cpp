@@ -8,6 +8,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     getEvents().onAnyMessage(std::bind(&ReactorKun::_onUpdate, this, std::placeholders::_1));
     _botName = getApi().getMe()->username;
     getApi().deleteWebhook();
+    BotDB db("./123.db");
 }
 
 void ReactorKun::_onUpdate(TgBot::Message::Ptr message)

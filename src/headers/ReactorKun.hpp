@@ -2,6 +2,7 @@
 #include <tgbot/tgbot.h>
 #include "Config.hpp"
 #include <curl/curl.h>
+#include "BotDB.hpp"
 
 class ReactorKun : public TgBot::Bot
 {
