@@ -14,4 +14,5 @@ private:
     void _onUpdate(TgBot::Message::Ptr message);
     std:: string _botName;
     Config _config;
+    BotDB _botDB{"./reactor_kun.db"};
 };

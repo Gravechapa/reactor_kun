@@ -1,8 +1,6 @@
 #include "BotDB.hpp"
 #include <inttypes.h>
 
-class PreparedStatment;
-
 class Connection
 {
 public:
@@ -21,7 +19,7 @@ public:
             }
     }
 
-    int isChanged()
+    int isChanged() const noexcept
     {
         return sqlite3_changes(_connection);
     }
@@ -78,13 +76,27 @@ public:
 
     bool next()
     {
-        auto res = sqlite3_step(_statment);
+        if (_afterLast)
+            {
+                return false;
+            }
+        int res;
+        while ((res = sqlite3_step(_statment)) == SQLITE_BUSY)
+            {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(16ms);
+            }
         if (res != SQLITE_ROW && res != SQLITE_DONE)
             {
                throw std::runtime_error(sqlite3_errmsg(_connection));
            }
+        if (_beforeFirst)
+            {
+                _beforeFirst = false;
+            }
         if (res == SQLITE_DONE)
             {
+                _afterLast = true;
                 return false;
             }
         return true;
@@ -95,25 +107,41 @@ public:
         while (next());
     }
 
-    int getInt(int col)
+    int getInt(int col) const noexcept
     {
         return sqlite3_column_int(_statment, col);
     }
 
-    sqlite3_int64 getInt64(int col)
+    sqlite3_int64 getInt64(int col) const noexcept
     {
         return sqlite3_column_int64(_statment, col);
     }
 
-    std::string getText(int col)
+    std::string getText(int col) const noexcept
     {
-        return std::string(reinterpret_cast<const char*>(sqlite3_column_text(_statment, col)));
+        auto text = reinterpret_cast<const char*>(sqlite3_column_text(_statment, col));
+        if (text)
+            {
+                return std::string(text);
+            }
+        return std::string();
     }
 
+    bool isBeforeFirst() const noexcept
+    {
+        return _beforeFirst;
+    }
+
+    bool isAfterLast() const noexcept
+    {
+        return _afterLast;
+    }
 
 private:
     sqlite3_stmt *_statment = nullptr;
     sqlite3 *_connection;
+    bool _beforeFirst = true;
+    bool _afterLast = false;
 
 };
 
@@ -273,6 +301,61 @@ void BotDB::markReactorPostsAsSent()
     stmt.execute();
 }
 
-//TODO getNotSentReactorPosts
-//getLatestReactorPost
-//createReactorPost
+std::vector<ReactorPost> BotDB::getNotSentReactorPosts()
+{
+    std::vector<ReactorPost> result;
+    Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
+
+    PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls WHERE SENT = 0;");
+    PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
+                                   "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
+
+      while(resultSetUrls.next())
+         {
+             result.push_back(_createReactorPost(resultSetUrls, resultSetData));
+         }
+     return result;
+}
+
+ReactorPost BotDB::getLatestReactorPost()
+{
+    ReactorPost result;
+    Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
+
+    PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls order by ROWID DESC limit 1;");
+    PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
+                                   "(SELECT ID FROM reactor_urls order by ROWID DESC limit 1) order by ID;");
+
+     if(resultSetUrls.next())
+         {
+             result = _createReactorPost(resultSetUrls, resultSetData);
+         }
+     return result;
+}
+
+ReactorPost BotDB::_createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData)
+{
+    ReactorPost post;
+    int64_t id = resultSetUrls.getInt64(0);
+    post.url = resultSetUrls.getText(1);
+    post.tags = resultSetUrls.getText(2);
+
+    if (resultSetData.isBeforeFirst())
+        {
+            resultSetData.next();
+        }
+    if (!resultSetData.isAfterLast())
+        {
+            do
+                {
+                    if (id != resultSetData.getInt64(0))
+                        {
+                            return post;
+                        }
+                    post.elements.emplace_back(RawElement(static_cast<ElementType>(resultSetData.getInt(1)),
+                            resultSetData.getText(2), resultSetData.getText(3)));
+                }
+            while (resultSetData.next());
+        }
+    return post;
+}

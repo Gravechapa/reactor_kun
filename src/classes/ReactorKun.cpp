@@ -8,7 +8,6 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     getEvents().onAnyMessage(std::bind(&ReactorKun::_onUpdate, this, std::placeholders::_1));
     _botName = getApi().getMe()->username;
     getApi().deleteWebhook();
-    BotDB db("./123.db");
 }
 
 void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
@@ -34,6 +33,26 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
             secretCMD += "@" + _botName;
         }
 
+    if (text == addCMD)
+        {
+            auto &chat = message->chat;
+            if (!_botDB.newListener(chatID, chat->username, chat->firstName, chat->lastName))
+                {
+                    return;
+                }
+            getApi().sendMessage(chatID, "Добавил.");
+            //TODO send latest post
+            return;
+        }
+    if (text == removeCMD)
+        {
+            if (_botDB.deleteListener(chatID))
+                {
+                    getApi().sendMessage(chatID, "Удалил.");
+                    return;
+                }
+            return;
+        }
     if (text == killCMD && message->chat->username == _config.getSU())
         {
             exit(0);
@@ -49,11 +68,4 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
                     getApi().sendPhoto(chatID, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
                 }
         }
-
-    printf("User wrote %s\n", message->text.c_str());
-    if (StringTools::startsWith(message->text, "/start"))
-        {
-            return;
-        }
-    getApi().sendMessage(message->chat->id, "Your message is: " + message->text);
 }

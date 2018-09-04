@@ -6,7 +6,9 @@
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <thread>
 
+class PreparedStatment;
 
 enum class ElementType : int
     {
@@ -19,7 +21,7 @@ enum class ElementType : int
 
 struct RawElement
     {
-        RawElement(ElementType type_, std::string &text_, std::string &url_)
+        RawElement(ElementType type_, std::string text_, std::string url_)
         {
             type = type_;
             text = text_;
@@ -28,6 +30,13 @@ struct RawElement
         ElementType type;
         std::string text;
         std::string url;
+    };
+
+struct ReactorPost
+    {
+        std::string url;
+        std::string tags;
+        std::vector<RawElement> elements;
     };
 
 class BotDB
@@ -43,8 +52,12 @@ public:
     bool newReactorUrl(int64_t id, std::string url, std::string tags);
     bool newReactorData(int64_t id, ElementType type, std::string text, std::string data);
     void markReactorPostsAsSent();
+    std::vector<ReactorPost> getNotSentReactorPosts();
+    ReactorPost getLatestReactorPost();
 
 private:
 
     std::string _path;
+
+    ReactorPost _createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData);
 };
