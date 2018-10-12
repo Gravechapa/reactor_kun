@@ -20,6 +20,11 @@ message("Configure Json")
 include("${EXTERNAL_PROJECTS_DIR}/Json.cmake")
 #####################################################################
 
+############################ReactorParser############################
+message("Configure ReactorParser")
+include("${EXTERNAL_PROJECTS_DIR}/ReactorParser.cmake")
+#####################################################################
+
 message(STATUS "Starting collecting files")
 aux_source_directory(${SOURCE_ROOT} SOURCES)
 file (GLOB_RECURSE SUB_SOURCES "${SOURCE_ROOT}/classes/*.c*")
@@ -34,6 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
+find_package(Boost COMPONENTS thread REQUIRED)
 add_definitions(-DHAVE_CURL)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules" ${CMAKE_MODULE_PATH})
@@ -54,7 +60,8 @@ if(MSVC)
     set_target_properties(${EXECUTABLE} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 endif()
-target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl ${SQLITE3_LIBRARIES})
+add_dependencies(${EXECUTABLE} reactor_parser)
+target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${REACTOR_PARSER_LIB})
 
 
 #############Copies data files to a binary directory####################################

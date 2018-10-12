@@ -7,16 +7,16 @@
 #include <utility>
 #include <iostream>
 #include <thread>
+#include "ReactorParser.hpp"
 
 class PreparedStatment;
 
-enum class ElementType : int
+enum class ElementType : int32_t
     {
         TEXT = 0,
         IMG,
         DOCUMENT,
         URL,
-        TAGS
     };
 
 struct RawElement
@@ -50,10 +50,13 @@ public:
 
     void deleteOldReactorPosts(int limit);
     bool newReactorUrl(int64_t id, std::string url, std::string tags);
-    bool newReactorData(int64_t id, ElementType type, std::string text, std::string data);
+    bool newReactorData(int64_t id, ElementType type, std::string text, const char* data);
     void markReactorPostsAsSent();
     std::vector<ReactorPost> getNotSentReactorPosts();
     ReactorPost getLatestReactorPost();
+    bool empty();
+
+    static BotDB& getBotDB();
 
 private:
 
