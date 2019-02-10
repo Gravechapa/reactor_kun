@@ -1,18 +1,32 @@
 cmake_minimum_required(VERSION 3.11.4)
 
-include(ExternalProject)
-ExternalProject_Add(
+include(FetchContent)
+FetchContent_Declare(
     reactor_parser
     GIT_REPOSITORY     https://github.com/Gravechapa/reactor_parser.git
     GIT_TAG            master
     GIT_SHALLOW        1
-    BUILD_COMMAND      cargo build --release
-    SOURCE_DIR         "${CMAKE_BINARY_DIR}/reactor_parser"
+    BUILD_COMMAND      cargo build --release --target-dir="${CMAKE_BINARY_DIR}/reactor_parser"
+    SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/reactor_parser"
     INSTALL_COMMAND    ""
     CONFIGURE_COMMAND  ""
 )
 
+FetchContent_GetProperties(reactor_parser)
+if(NOT reactor_parser_POPULATED)
+    FetchContent_Populate(reactor_parser)
 
-include_directories("${CMAKE_BINARY_DIR}/reactor_parser/headers")
-set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/target/release/libreactor_parser.so")
+    include_directories("${reactor_parser_SOURCE_DIR}/headers")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_custom_target(reactor_parser
+                    COMMAND cargo build --target-dir="${CMAKE_BINARY_DIR}/reactor_parser"
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser")
+        set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/debug/libreactor_parser.so")
+    else()
+        add_custom_target(reactor_parser
+                    COMMAND cargo build --release --target-dir="${CMAKE_BINARY_DIR}/reactor_parser"
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser")
+        set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/release/libreactor_parser.so")
+    endif()
+endif()

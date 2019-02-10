@@ -1,4 +1,8 @@
 #include "ReactorKun.hpp"
+#include <curl/curl.h>
+#include "ReactorParser.hpp"
+#include <iostream>
+#include <thread>
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -76,13 +80,32 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         }
     if (text == getRandomCMD)
         {
-            getApi().sendMessage(chatID, "WIP");
-            //TODO
+            auto post = ReactorParser::getRandomPost();
+            if (post.url != "")
+            {
+                sendReactorPost(post, chatID);
+            }
         }
-    if (text == getPostByNumberCMD)
+    if (text.find(getPostByNumberCMD) == 0)
         {
-            getApi().sendMessage(chatID, "WIP");
-            //TODO
+            auto postNumber = text.substr(getPostByNumberCMD.size());
+            postNumber.erase(postNumber.begin(),
+                             std::find_if(postNumber.begin(), postNumber.end(), [](int ch) {
+                    return !std::isspace(ch);
+                }));
+
+            if (std::regex_match (postNumber, std::regex("^\\d+$")))
+            {
+                auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
+                if (post.url != "")
+                {
+                    sendReactorPost(post, chatID);
+                }
+            }
+            else
+                {
+                    getApi().sendMessage(chatID, "Неправильный номер поста.");
+                }
         }
     if (text == killCMD && message->chat->username == _config.getSU())
         {

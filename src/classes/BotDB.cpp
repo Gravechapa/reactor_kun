@@ -1,5 +1,11 @@
 #include "BotDB.hpp"
 #include <inttypes.h>
+#include "ReactorParser.hpp"
+#include <thread>
+#include <utility>
+#include <iostream>
+#include <stdexcept>
+#include <sqlite3.h>
 
 class Connection
 {
@@ -38,11 +44,11 @@ public:
         int counter = 0;
         while (sqlite3_prepare_v2(db._connection, zSql.c_str(), -1, &_statment, nullptr) != SQLITE_OK)
             {
-                ++counter;
-                if (counter > 10)
+                if (++counter > 10)
                     {
                         throw std::runtime_error("Can't create PreparedStatment");
                     }
+                std::cout << "Can't create PreparedStatment, retrying: " << counter << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(16));
             }
         _connection = db._connection;
@@ -218,7 +224,7 @@ bool BotDB::deleteListener(int64_t id)
 {
     Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
-    PreparedStatment stmt(connection, "DELETE FROM listeners where ID = ?;");
+    PreparedStatment stmt(connection, "DELETE FROM listeners WHERE ID = ?;");
 
     stmt.bindInt64(1, id);
 

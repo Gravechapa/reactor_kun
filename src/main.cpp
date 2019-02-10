@@ -11,8 +11,8 @@ int main()
         exit(0);
     });
 
-    try
-        {
+/*    try
+        {*/
             TgBot::CurlHttpClient curlClient;
             ReactorKun reactorKun(Config ("configs/config.json"), curlClient);
             TgBot::TgLongPoll longPoll(reactorKun);
@@ -21,11 +21,11 @@ int main()
                     std:: cout << "Long poll started" << std::endl;
                     longPoll.start();
                 }
-        }
+        /*}
     catch (std::exception& e)
         {
             std:: cout << e.what() << std::endl;
-        }
+        }*/
 
     return 0;
 }

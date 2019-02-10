@@ -1,10 +1,28 @@
 #include "ReactorParser.hpp"
+#include "RustReactorParser.h"
+#include <iostream>
+#include <thread>
 
-static std::string TAG = "/new";
 static std::string DOMAIN = "http://old.reactor.cc";
-static int OVERLOAD = 2000;
+static ReactorPost *REACTORPOSTPTR;
+
+std::string ReactorParser::_tag = "/new";
+int ReactorParser::_overload = 2000;
 
 CURL * const ReactorParser::_config{curl_easy_init()};
+
+bool newReactorUrlRaw(int64_t, const char* url, const char* tags)
+{
+    REACTORPOSTPTR->url = DOMAIN + url;
+    REACTORPOSTPTR->tags = tags;
+    return true;
+}
+
+bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data)
+{
+    REACTORPOSTPTR->elements.push_back(RawElement(static_cast<ElementType>(type), text, data ? data : ""));
+    return true;
+}
 
 bool newReactorUrl(int64_t id, const char* url, const char* tags)
 {
@@ -36,19 +54,14 @@ void ReactorParser::setProxy(std::string address)
 void ReactorParser::init()
 {
     auto curl = curl_easy_duphandle(_config);
-    auto start_page = DOMAIN + TAG;
+    auto start_page = DOMAIN + _tag;
     curl_easy_setopt(curl, CURLOPT_URL, start_page.c_str());
     curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
 
     std::string html;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
 
-    auto result = curl_easy_perform(curl);
-    if(result != CURLE_OK)
-        {
-             throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
-        }
+    perform(curl);
     curl_easy_cleanup(curl);
 
     NextPageUrl nextPageUrl;
@@ -56,13 +69,49 @@ void ReactorParser::init()
     get_page_content_cleanup(&nextPageUrl);
 }
 
+ReactorPost ReactorParser::getPostByURL(std::string link)
+{
+    ReactorPost post;
+    REACTORPOSTPTR = &post;
+
+    auto curl = curl_easy_duphandle(_config);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+
+    std::string html;
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
+    curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
+
+    perform(curl);
+
+    if (!get_page_content(html.c_str(), &newReactorUrlRaw, &newReactorDataRaw, nullptr))
+        {
+            std::cout << "There were some issues when processing the page: " << link << std::endl;
+        }
+
+    curl_easy_cleanup(curl);
+    return post;
+}
+
+ReactorPost ReactorParser::getRandomPost()
+{
+    auto curl = curl_easy_duphandle(_config);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
+    std::string link = DOMAIN + "/random";
+    curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
+    perform(curl);
+    char *url = nullptr;
+    curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);
+    ReactorPost post = getPostByURL(url);
+    curl_easy_cleanup(curl);
+    return post;
+}
+
 void ReactorParser::update()
 {
-    std::string nextUrl = DOMAIN + TAG;
+    std::string nextUrl = DOMAIN + _tag;
 
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
 
     NextPageUrl nextPageUrl;
 
@@ -72,11 +121,7 @@ void ReactorParser::update()
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
             curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
 
-            auto result = curl_easy_perform(curl);
-            if(result != CURLE_OK)
-                {
-                     throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
-                }
+            perform(curl);
 
             if (!get_page_content(html.c_str(), &newReactorUrl, &newReactorData, &nextPageUrl))
                 {
@@ -84,13 +129,29 @@ void ReactorParser::update()
                 }
             nextUrl = DOMAIN + nextPageUrl.url;
 
-            if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > OVERLOAD)
+            if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
                 {
                     curl_easy_cleanup(curl);
                     get_page_content_cleanup(&nextPageUrl);
                     return;
                 }
             get_page_content_cleanup(&nextPageUrl);
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+}
+
+void ReactorParser::perform(CURL *curl)
+{
+    int counter = 0;
+    CURLcode result;
+    while((result = curl_easy_perform(curl)) != CURLE_OK)
+        {
+            if (++counter > 10)
+                {
+                    curl_easy_cleanup(curl);
+                    throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
+                }
+            std::cout << "Curl issue: " << curl_easy_strerror(result) << " Retrying: " << counter << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
 }

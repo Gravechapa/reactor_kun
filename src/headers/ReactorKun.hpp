@@ -1,12 +1,8 @@
 #pragma once
 #include <tgbot/tgbot.h>
 #include "Config.hpp"
-#include <curl/curl.h>
 #include "BotDB.hpp"
-#include "ReactorParser.hpp"
-#include <iostream>
 #include <boost/thread.hpp>
-#include <thread>
 
 class ReactorKun : public TgBot::Bot
 {
