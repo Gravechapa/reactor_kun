@@ -3,6 +3,7 @@
 #include "ReactorParser.hpp"
 #include <iostream>
 #include <thread>
+#include <utf8_string.hpp>
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -105,6 +106,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
             else
                 {
                     getApi().sendMessage(chatID, "Неправильный номер поста.");
+                    //TODO exceptions
                 }
         }
     if (text == killCMD && message->chat->username == _config.getSU())
@@ -131,6 +133,7 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
         {
             getApi().sendMessage(listener, "*Ссылка:* " + post.url + "\n*Теги:* " + post.tags,
                              true, 0, nullptr, "Markdown", false);
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     catch (std::exception &e)
         {
@@ -140,33 +143,32 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
         {
             try
                 {
+                    if (!rawElement.text.empty())
+                        {
+                            UTF8string utf8Text(rawElement.text);
+                            for (unsigned int i = 0; i <= utf8Text.utf8_length() / 4096; ++i)
+                                {
+                                    auto splittedString = utf8Text.utf8_substr(i * 4096, 4096);
+                                    getApi().sendMessage(listener, splittedString.utf8_sstring(),
+                                                         true, 0, nullptr, "", true);
+                                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                                }
+                        }
                     switch (rawElement.type)
                         {
                         case ElementType::TEXT:
-                            getApi().sendMessage(listener, rawElement.text, true, 0, nullptr, "", true);
                             break;
                         case ElementType::IMG:
-                            if (!rawElement.text.empty())
-                                {
-                                    getApi().sendMessage(listener, rawElement.text, true, 0, nullptr, "", true);
-                                }
                             getApi().sendPhoto(listener, rawElement.url, "", 0, nullptr, "", true);
                             break;
                         case ElementType::DOCUMENT:
-                            if (!rawElement.text.empty())
-                                {
-                                    getApi().sendMessage(listener, rawElement.text, true, 0, nullptr, "", true);
-                                }
                             getApi().sendDocument(listener, rawElement.url, "", "", 0, nullptr, "", true);
                             break;
                         case ElementType::URL:
-                            if (!rawElement.text.empty())
-                                {
-                                    getApi().sendMessage(listener, rawElement.text, true, 0, nullptr, "", true);
-                                }
                             getApi().sendMessage(listener, rawElement.url, false, 0, nullptr, "", true);
                             break;
                         }
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
                 }
             catch (std::exception &e)
                 {
@@ -183,9 +185,9 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
                             std::cout << e.what() << std::endl;
                         }
                 }
-            std::this_thread::sleep_for(std::chrono::seconds(2));
         }
 }
+
 void ReactorKun::_mailerHandler()
 {
     boost::this_thread::interruption_enabled();

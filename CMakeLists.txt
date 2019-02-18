@@ -25,6 +25,11 @@ message("Configure ReactorParser")
 include("${EXTERNAL_PROJECTS_DIR}/ReactorParser.cmake")
 #####################################################################
 
+############################UTF8String############################
+message("Configure UTF8String")
+include("${EXTERNAL_PROJECTS_DIR}/UTF8String.cmake")
+#####################################################################
+
 message(STATUS "Starting collecting files")
 aux_source_directory(${SOURCE_ROOT} SOURCES)
 file (GLOB_RECURSE SUB_SOURCES "${SOURCE_ROOT}/classes/*.c*")
@@ -55,7 +60,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_executable(${EXECUTABLE} ${SOURCES} ${HEADERS})
+add_executable(${EXECUTABLE} ${SOURCES} ${HEADERS} ${UTF8_STRING_SOURCE})
 if(MSVC)
     set_target_properties(${EXECUTABLE} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})

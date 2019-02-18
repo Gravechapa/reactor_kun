@@ -4,7 +4,7 @@ include(FetchContent)
 FetchContent_Declare(
     tgbot
     GIT_REPOSITORY     https://github.com/reo7sp/tgbot-cpp.git
-    GIT_TAG            5a1bcfdddecaba039e458c957f79ecc60d12a5fb
+    GIT_TAG            v1.1
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/tgbot"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/tgbot-bin"
 )

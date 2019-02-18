@@ -6,7 +6,6 @@ FetchContent_Declare(
     GIT_REPOSITORY     https://github.com/Gravechapa/reactor_parser.git
     GIT_TAG            master
     GIT_SHALLOW        1
-    BUILD_COMMAND      cargo build --release --target-dir="${CMAKE_BINARY_DIR}/reactor_parser"
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/reactor_parser"
     INSTALL_COMMAND    ""

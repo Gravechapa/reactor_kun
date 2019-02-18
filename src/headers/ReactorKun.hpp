@@ -15,7 +15,7 @@ public:
 private:
 
     void _onUpdate(TgBot::Message::Ptr message);
-    void _mailerHandler();
+    [[noreturn]] void _mailerHandler();
 
     boost::thread _mailer;
     std:: string _botName;
