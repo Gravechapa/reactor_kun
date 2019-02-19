@@ -5,6 +5,8 @@
 #include <thread>
 #include <utf8_string.hpp>
 
+int ReactorKun::messageDelay = 3;
+
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
 {
@@ -58,18 +60,16 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
                 {
                     return;
                 }
-            getApi().sendMessage(chatID, "The Beast is Back");
-            //TODO exceptions
+            sendMessage(chatID, "The Beast is Back");
             auto post = BotDB::getBotDB().getLatestReactorPost();
-            sendReactorPost(post, chatID);
+            sendReactorPost(chatID, post);
             return;
         }
     if (text == removeCMD)
         {
             if (BotDB::getBotDB().deleteListener(chatID))
                 {
-                    getApi().sendMessage(chatID, "Удалил.");
-                    //TODO exceptions
+                    sendMessage(chatID, "Удалил.");
                     return;
                 }
             return;
@@ -77,15 +77,17 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     if (text == getLatestCMD)
         {
             auto post = BotDB::getBotDB().getLatestReactorPost();
-            sendReactorPost(post, chatID);
+            sendReactorPost(chatID, post);
+            return;
         }
     if (text == getRandomCMD)
         {
             auto post = ReactorParser::getRandomPost();
             if (post.url != "")
             {
-                sendReactorPost(post, chatID);
+                sendReactorPost(chatID, post);
             }
+            return;
         }
     if (text.find(getPostByNumberCMD) == 0)
         {
@@ -100,14 +102,18 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
                 auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
                 if (post.url != "")
                 {
-                    sendReactorPost(post, chatID);
+                    sendReactorPost(chatID, post);
+                }
+                else
+                {
+                    sendMessage(chatID, "Пост не найден.");
                 }
             }
             else
                 {
-                    getApi().sendMessage(chatID, "Неправильный номер поста.");
-                    //TODO exceptions
+                    sendMessage(chatID, "Неправильный номер поста.");
                 }
+            return;
         }
     if (text == killCMD && message->chat->username == _config.getSU())
         {
@@ -115,6 +121,9 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         }
     if (text == secretCMD)
         {
+            //TODO
+        try
+            {
             if (message->chat->username != _config.getSU())
                 {
                     getApi().sendPhoto(chatID, "http://i3.kym-cdn.com/photos/images/newsfeed/000/544/719/a6c.png");
@@ -123,17 +132,37 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
                 {
                     getApi().sendPhoto(chatID, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
                 }
-            //TODO exceptions
+
+            }
+        catch (std::exception &e)
+            {
+                std::cout << e.what() << std::endl;
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
+            //TODO
         }
 }
 
-void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
+void ReactorKun::sendMessage(int64_t listener, std::string message)
+{
+    try
+        {
+            getApi().sendMessage(listener, message);
+            std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
+        }
+    catch (std::exception &e)
+        {
+            std::cout << e.what() << std::endl;
+        }
+}
+
+void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 {
     try
         {
             getApi().sendMessage(listener, "*Ссылка:* " + post.url + "\n*Теги:* " + post.tags,
                              true, 0, nullptr, "Markdown", false);
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
         }
     catch (std::exception &e)
         {
@@ -151,7 +180,7 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
                                     auto splittedString = utf8Text.utf8_substr(i * 4096, 4096);
                                     getApi().sendMessage(listener, splittedString.utf8_sstring(),
                                                          true, 0, nullptr, "", true);
-                                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                                    std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
                                 }
                         }
                     switch (rawElement.type)
@@ -168,7 +197,7 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
                             getApi().sendMessage(listener, rawElement.url, false, 0, nullptr, "", true);
                             break;
                         }
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
                 }
             catch (std::exception &e)
                 {
@@ -177,7 +206,8 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
                        {
                            if (!rawElement.url.empty())
                                {
-                                getApi().sendMessage(listener,"Не могу отправить: " + rawElement.url, false, 0, nullptr, "", true);
+                                getApi().sendMessage(listener,"Не могу отправить: " + rawElement.url,
+                                                     false, 0, nullptr, "", true);
                                }
                        }
                     catch (std::exception &e)
@@ -185,6 +215,16 @@ void ReactorKun::sendReactorPost(ReactorPost &post, int64_t listener)
                             std::cout << e.what() << std::endl;
                         }
                 }
+        }
+    try
+        {
+            getApi().sendMessage(listener, u8"🔚🔚🔚🔚🔚🔚🔚🔚つ ◕_◕ ༽つ🔚🔚🔚🔚🔚🔚🔚🔚",
+                                 true, 0, nullptr, "", true);
+            std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
+        }
+    catch (std::exception &e)
+        {
+            std::cout << e.what() << std::endl;
         }
 }
 
@@ -204,7 +244,7 @@ void ReactorKun::_mailerHandler()
                 {
                     for (auto &post : posts)
                         {
-                            sendReactorPost(post, listener);
+                            sendReactorPost(listener, post);
                         }
                 }
 

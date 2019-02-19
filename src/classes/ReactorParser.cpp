@@ -40,11 +40,6 @@ size_t WriteCallback(char *contents, size_t size, size_t nmemb, void *userp)
     return size * nmemb;
 }
 
-size_t dummyWriteCallback(char, size_t size, size_t nmemb, void*)
-{
-    return size * nmemb;
-}
-
 void ReactorParser::setup()
 {
     curl_easy_setopt(_config, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -101,9 +96,10 @@ ReactorPost ReactorParser::getPostByURL(std::string link)
 ReactorPost ReactorParser::getRandomPost()
 {
     auto curl = curl_easy_duphandle(_config);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, dummyWriteCallback);
     std::string link = DOMAIN + "/random";
     curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
     perform(curl);
     char *url = nullptr;
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);
@@ -133,18 +129,24 @@ void ReactorParser::update()
                                   &nextPageUrl, nullptr, false))
                 {
                     std::cout << "There were some issues when processing the page: " << nextUrl << std::endl;
+                    if (!nextPageUrl.url)
+                    {
+                        std::cout << html << std::endl;
+                        goto exit;
+                    }
                 }
             nextUrl = DOMAIN + nextPageUrl.url;
+            get_page_content_cleanup(&nextPageUrl);
 
             if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
                 {
-                    curl_easy_cleanup(curl);
-                    get_page_content_cleanup(&nextPageUrl);
-                    return;
+                    goto exit;
                 }
-            get_page_content_cleanup(&nextPageUrl);
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
+
+    exit:
+        curl_easy_cleanup(curl);
 }
 
 void ReactorParser::perform(CURL *curl)

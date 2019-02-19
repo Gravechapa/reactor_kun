@@ -10,9 +10,12 @@ public:
     ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient);
     ~ReactorKun();
 
-    void sendReactorPost(ReactorPost &post, int64_t listener);
+    void sendMessage(int64_t listener, std::string message);
+    void sendReactorPost(int64_t listener, ReactorPost &post);
 
 private:
+
+    static int messageDelay;
 
     void _onUpdate(TgBot::Message::Ptr message);
     [[noreturn]] void _mailerHandler();
