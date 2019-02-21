@@ -44,13 +44,16 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
     if (message->chat->type != TgBot::Chat::Type::Private)
         {
-            addCMD += "@" + _botName;
-            removeCMD += "@" + _botName;
-            getLatestCMD += "@" + _botName;
-            getRandomCMD += "@" + _botName;
-            getPostByNumberCMD += "@" + _botName;
-            killCMD += "@" + _botName;
-            secretCMD += "@" + _botName;
+            auto pos = text.find("@" + _botName);
+            if (pos != std::string::npos)
+            {
+                text.erase(pos, _botName.size() + 1);
+                _trim(text);
+            }
+            else
+            {
+                return;
+            }
         }
 
     if (text == addCMD)
@@ -92,12 +95,8 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     if (text.find(getPostByNumberCMD) == 0)
         {
             auto postNumber = text.substr(getPostByNumberCMD.size());
-            postNumber.erase(postNumber.begin(),
-                             std::find_if(postNumber.begin(), postNumber.end(), [](int ch) {
-                    return !std::isspace(ch);
-                }));
-
-            if (std::regex_match (postNumber, std::regex("^\\d+$")))
+            _trim(postNumber);
+            if (std::regex_match(postNumber, std::regex(R"(^\d+$)")))
             {
                 auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
                 if (post.url != "")
@@ -132,15 +131,36 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
                 {
                     getApi().sendPhoto(chatID, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
                 }
-
             }
         catch (std::exception &e)
             {
                 std::cout << e.what() << std::endl;
             }
             std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
+            return;
             //TODO
         }
+    if (std::regex_match(text, std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+/?$)")))
+    {
+        if (text.back() == '/')
+        {
+            text.pop_back();
+        }
+        auto postNumber = text.substr(text.rfind("/") + 1);
+        auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
+        if (post.url != "")
+        {
+            sendReactorPost(chatID, post);
+        }
+        else
+        {
+            sendMessage(chatID, "Пост не найден.");
+        }
+    }
+    else
+    {
+        sendMessage(chatID, "Команда не найдена.");
+    }
 }
 
 void ReactorKun::sendMessage(int64_t listener, std::string message)
@@ -253,4 +273,11 @@ void ReactorKun::_mailerHandler()
 
             boost::this_thread::sleep_for(boost::chrono::minutes(5));
         }
+}
+
+void ReactorKun::_trim(std::string &string)
+{
+    string.erase(string.begin(),std::find_if(string.begin(), string.end(), [](int ch) {
+            return !std::isspace(ch);
+        }));
 }
