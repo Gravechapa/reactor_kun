@@ -9,9 +9,9 @@ class Config
 public:
     Config(std::string configFile);
 
-    std::string getToken() const;
-    std::string getSU() const;
-    std::string getProxy() const;
+    const std::string& getToken() const;
+    const std::string& getSU() const;
+    const std::string& getProxy() const;
 
 private:
     std::string _token;

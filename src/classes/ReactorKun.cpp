@@ -34,13 +34,13 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 {
     auto text = message->text;
     auto chatID = message->chat->id;
-    std::string addCMD = "/start";
-    std::string removeCMD = "/stop";
-    std::string getLatestCMD = "/get_latest";
-    std::string getRandomCMD = "/get_random";
-    std::string getPostByNumberCMD = "/get_post_by_number";
-    std::string killCMD = "/kill";
-    std::string secretCMD = "/killall -9";
+    static const std::string_view addCMD = "/start";
+    static const std::string_view removeCMD = "/stop";
+    static const std::string_view getLatestCMD = "/get_latest";
+    static const std::string_view getRandomCMD = "/get_random";
+    static const std::string_view getPostByNumberCMD = "/get_post_by_number";
+    static const std::string_view killCMD = "/kill";
+    static const std::string_view secretCMD = "/killall -9";
 
     if (message->chat->type != TgBot::Chat::Type::Private)
         {
@@ -96,7 +96,8 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         {
             auto postNumber = text.substr(getPostByNumberCMD.size());
             _trim(postNumber);
-            if (std::regex_match(postNumber, std::regex(R"(^\d+$)")))
+            static const auto numberRegex = std::regex(R"(^\d+$)");
+            if (std::regex_match(postNumber, numberRegex))
             {
                 auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
                 if (post.url != "")
@@ -140,7 +141,9 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
             return;
             //TODO
         }
-    if (std::regex_match(text, std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+/?$)")))
+    static const auto reactorUrlRegex =
+            std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+/?$)");
+    if (std::regex_match(text, reactorUrlRegex))
     {
         if (text.back() == '/')
         {
@@ -163,11 +166,11 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     }
 }
 
-void ReactorKun::sendMessage(int64_t listener, std::string message)
+void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 {
     try
         {
-            getApi().sendMessage(listener, message);
+            getApi().sendMessage(listener, message.data());
             std::this_thread::sleep_for(std::chrono::seconds(messageDelay));
         }
     catch (std::exception &e)

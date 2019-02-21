@@ -39,10 +39,15 @@ private:
 class PreparedStatment
 {
 public:
-    PreparedStatment(Connection &db, std::string zSql)
+    PreparedStatment(Connection &db, std::string_view zSql)
     {
+        if (zSql.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
+        {
+            throw std::runtime_error("Sql query is too large");
+        }
         int counter = 0;
-        while (sqlite3_prepare_v2(db._connection, zSql.c_str(), -1, &_statment, nullptr) != SQLITE_OK)
+        while (sqlite3_prepare_v2(db._connection, zSql.data(), static_cast<int>(zSql.size()),
+                                  &_statment, nullptr) != SQLITE_OK)
             {
                 if (++counter > 10)
                     {
@@ -78,9 +83,10 @@ public:
             }
     }
 
-    void bindText(int pos, std::string &value)
+    void bindText(int pos, std::string_view value)
     {
-        if (sqlite3_bind_text(_statment, pos, value.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK)
+        if (sqlite3_bind_text64(_statment, pos, value.data(), value.size(),
+                                SQLITE_TRANSIENT, SQLITE_UTF8) != SQLITE_OK)
             {
                 throw std::runtime_error("Can't bind text to PreparedStatment");
             }
@@ -166,44 +172,41 @@ private:
 };
 
 
-BotDB::BotDB(std::string path)
+BotDB::BotDB(std::string_view path)
 {
     _path = path;
     if(sqlite3_threadsafe() == 0)
         {
             throw std::runtime_error("Yours sqlite don't have multithread support");
         }
-    Connection connection(path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX);
+    Connection connection(std::string(path), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX);
 
-    std::string query = "CREATE TABLE IF NOT EXISTS listeners (ID INTEGER PRIMARY KEY NOT NULL," \
-                                                   " USERNAME TEXT NULL," \
-                                                   " FIRST_NAME TEXT NULL," \
-                                                   " LAST_NAME TEXT NULL);";
     {
-        PreparedStatment stmt(connection, query);
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS listeners (ID INTEGER PRIMARY KEY NOT NULL," \
+                                          " USERNAME TEXT NULL," \
+                                          " FIRST_NAME TEXT NULL," \
+                                          " LAST_NAME TEXT NULL);");
         stmt.execute();
     }
 
-    query = "CREATE TABLE IF NOT EXISTS reactor_data (ID INTEGER NOT NULL," \
-                                              " TYPE INTEGER NOT NULL," \
-                                              " TEXT TEXT NULL," \
-                                              " DATA TEXT NULL);";
     {
-        PreparedStatment stmt(connection, query);
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_data (ID INTEGER NOT NULL," \
+                                          " TYPE INTEGER NOT NULL," \
+                                          " TEXT TEXT NULL," \
+                                          " DATA TEXT NULL);");
         stmt.execute();
     }
 
-
-    query = "CREATE TABLE IF NOT EXISTS reactor_urls (ID INTEGER PRIMARY KEY NOT NULL," \
-                                        " URL TEXT NOT NULL," \
-                                        " TAGS TEXT NOT NULL," \
-                                        " SENT INTEGER NOT NULL);";
-    PreparedStatment stmt(connection, query);
+    PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_urls (ID INTEGER PRIMARY KEY NOT NULL," \
+                                      " URL TEXT NOT NULL," \
+                                      " TAGS TEXT NOT NULL," \
+                                      " SENT INTEGER NOT NULL);");
     stmt.execute();
 
 }
 
-bool BotDB::newListener(int64_t id, std::string username, std::string firstName, std::string lastName)
+bool BotDB::newListener(int64_t id, std::string_view username,
+                        std::string_view firstName, std::string_view lastName)
 {
     Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -274,7 +277,7 @@ void BotDB::deleteOldReactorPosts(int limit)
         }
 }
 
-bool BotDB::newReactorUrl(int64_t id, std::string url, std::string tags)
+bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tags)
 {
     Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -289,7 +292,7 @@ bool BotDB::newReactorUrl(int64_t id, std::string url, std::string tags)
     return connection.isChanged() != 0;
 }
 
-bool BotDB::newReactorData(int64_t id, ElementType type, std::string text, const char* data)
+bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, const char* data)
 {
     Connection connection (_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -300,8 +303,7 @@ bool BotDB::newReactorData(int64_t id, ElementType type, std::string text, const
     text.empty() ? stmt.bindNull(3) : stmt.bindText(3, text);
     if (data)
         {
-            std::string temp(data);
-            stmt.bindText(4, temp);
+            stmt.bindText(4, data);
         }
     else
         {

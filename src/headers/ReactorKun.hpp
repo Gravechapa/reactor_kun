@@ -10,7 +10,7 @@ public:
     ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient);
     ~ReactorKun();
 
-    void sendMessage(int64_t listener, std::string message);
+    void sendMessage(int64_t listener, std::string_view message);
     void sendReactorPost(int64_t listener, ReactorPost &post);
 
 private:

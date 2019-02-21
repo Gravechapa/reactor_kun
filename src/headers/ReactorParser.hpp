@@ -7,10 +7,10 @@ class ReactorParser
 {
 public:
     static void setup();
-    static void setProxy(std::string address);
+    static void setProxy(std::string_view address);
     static void init();
     static void update();
-    static ReactorPost getPostByURL(std::string link);
+    static ReactorPost getPostByURL(std::string_view link);
     static ReactorPost getRandomPost();
 
 private:

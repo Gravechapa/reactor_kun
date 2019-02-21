@@ -35,15 +35,16 @@ struct ReactorPost
 class BotDB
 {
 public:
-    BotDB(std::string path);
+    BotDB(std::string_view path);
 
-    bool newListener(int64_t id, std::string username, std::string firstName, std::string lastName);
+    bool newListener(int64_t id, std::string_view username,
+                     std::string_view firstName, std::string_view lastName);
     bool deleteListener(int64_t id);
     std::vector<int64_t> getListeners();
 
     void deleteOldReactorPosts(int limit);
-    bool newReactorUrl(int64_t id, std::string url, std::string tags);
-    bool newReactorData(int64_t id, ElementType type, std::string text, const char* data);
+    bool newReactorUrl(int64_t id, std::string_view url, std::string_view tags);
+    bool newReactorData(int64_t id, ElementType type, std::string_view text, const char* data);
     void markReactorPostsAsSent();
     std::vector<ReactorPost> getNotSentReactorPosts();
     ReactorPost getLatestReactorPost();

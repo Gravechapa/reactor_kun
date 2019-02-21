@@ -93,17 +93,17 @@ Config::Config(std::string configFile)
         }
 }
 
-std::string Config::getToken() const
+const std::string& Config::getToken() const
 {
     return _token;
 }
 
-std::string Config::getSU() const
+const std::string& Config::getSU() const
 {
     return _superUserName;
 }
 
-std::string Config::getProxy() const
+const std::string& Config::getProxy() const
 {
     return _proxyAddress;
 }

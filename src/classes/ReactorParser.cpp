@@ -46,9 +46,9 @@ void ReactorParser::setup()
     curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 1L);
 }
 
-void ReactorParser::setProxy(std::string address)
+void ReactorParser::setProxy(std::string_view address)
 {
-    curl_easy_setopt(_config, CURLOPT_PROXY, address.c_str());
+    curl_easy_setopt(_config, CURLOPT_PROXY, address.data());
 }
 
 void ReactorParser::init()
@@ -70,7 +70,7 @@ void ReactorParser::init()
     get_page_content_cleanup(&nextPageUrl);
 }
 
-ReactorPost ReactorParser::getPostByURL(std::string link)
+ReactorPost ReactorParser::getPostByURL(std::string_view link)
 {
     ReactorPost post;
 
@@ -79,7 +79,7 @@ ReactorPost ReactorParser::getPostByURL(std::string link)
 
     std::string html;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
-    curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
+    curl_easy_setopt(curl, CURLOPT_URL, link.data());
 
     perform(curl);
 
