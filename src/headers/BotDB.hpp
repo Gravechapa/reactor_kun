@@ -1,36 +1,7 @@
 #pragma once
-#include <string>
-#include <vector>
+#include "ReactorPost.hpp"
 
 class PreparedStatment;
-
-enum class ElementType : int32_t
-    {
-        TEXT = 0,
-        IMG,
-        DOCUMENT,
-        URL,
-    };
-
-struct RawElement
-    {
-        RawElement(ElementType type_, std::string text_, std::string url_)
-        {
-            type = type_;
-            text = text_;
-            url = url_;
-        }
-        ElementType type;
-        std::string text;
-        std::string url;
-    };
-
-struct ReactorPost
-    {
-        std::string url;
-        std::string tags;
-        std::vector<RawElement> elements;
-    };
 
 class BotDB
 {

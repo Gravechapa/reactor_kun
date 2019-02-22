@@ -3,6 +3,12 @@
 #include <string>
 #include "BotDB.hpp"
 
+struct ContentInfo
+{
+    int64_t size = 0;
+    std::string type = "";
+};
+
 class ReactorParser
 {
 public:
@@ -12,12 +18,13 @@ public:
     static void update();
     static ReactorPost getPostByURL(std::string_view link);
     static ReactorPost getRandomPost();
+    static ContentInfo getContentInfo(std::string_view link);
 
 private:
-    static void perform(CURL *curl);
+    static void _perform(CURL *curl);
 
     static CURL * const _config;
 
     static std::string _tag;
-    static int _overload;
+    static int32_t _overload;
 };

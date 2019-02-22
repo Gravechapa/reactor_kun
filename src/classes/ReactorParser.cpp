@@ -12,15 +12,17 @@ CURL * const ReactorParser::_config{curl_easy_init()};
 
 bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
 {
-    static_cast<ReactorPost*>(userData)->url = DOMAIN + url;
-    static_cast<ReactorPost*>(userData)->tags = tags;
+    static_cast<ReactorPost*>(userData)->setHeader(DOMAIN + url, tags);
     return true;
 }
 
-bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data, void* userData)
+bool newReactorDataRaw(int64_t id, int32_t type, const char* text, const char* data, void* userData)
 {
-    static_cast<ReactorPost*>(userData)->elements.push_back(
-                RawElement(static_cast<ElementType>(type), text, data ? data : ""));
+    static_cast<ReactorPost*>(userData)->emplaceElement(std::unique_ptr<RawElement>(
+                                                            new RawElement(id,
+                                                                           static_cast<ElementType>(type),
+                                                                           text,
+                                                                           data ? data : "")));
     return true;
 }
 
@@ -61,7 +63,7 @@ void ReactorParser::init()
     std::string html;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
 
-    perform(curl);
+    _perform(curl);
     curl_easy_cleanup(curl);
 
     NextPageUrl nextPageUrl;
@@ -81,7 +83,7 @@ ReactorPost ReactorParser::getPostByURL(std::string_view link)
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
 
-    perform(curl);
+    _perform(curl);
 
     if (!get_page_content(html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
                           nullptr, &post, false))
@@ -100,7 +102,7 @@ ReactorPost ReactorParser::getRandomPost()
     curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-    perform(curl);
+    _perform(curl);
     char *url = nullptr;
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);
     ReactorPost post = getPostByURL(url);
@@ -123,7 +125,7 @@ void ReactorParser::update()
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
             curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
 
-            perform(curl);
+            _perform(curl);
 
             if (!get_page_content(html.c_str(), &newReactorUrl, &newReactorData,
                                   &nextPageUrl, nullptr, false))
@@ -149,7 +151,26 @@ void ReactorParser::update()
         curl_easy_cleanup(curl);
 }
 
-void ReactorParser::perform(CURL *curl)
+ContentInfo ReactorParser::getContentInfo(std::string_view link)
+{
+    auto curl = curl_easy_duphandle(_config);
+    curl_easy_setopt(curl, CURLOPT_URL, link.data());
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
+    _perform(curl);
+    ContentInfo contentInfo;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &contentInfo.size);
+    char *type = nullptr;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &type);
+    if (type)
+    {
+        contentInfo.type = std::string(type);
+    }
+    curl_easy_cleanup(curl);
+    return contentInfo;
+}
+
+void ReactorParser::_perform(CURL *curl)
 {
     int counter = 0;
     CURLcode result;

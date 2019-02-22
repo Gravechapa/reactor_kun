@@ -14,9 +14,6 @@ public:
     void sendReactorPost(int64_t listener, ReactorPost &post);
 
 private:
-
-    static int messageDelay;
-
     void _onUpdate(TgBot::Message::Ptr message);
     [[noreturn]] void _mailerHandler();
     void _trim(std::string &string);

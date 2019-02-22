@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <sqlite3.h>
+#include "TgLimits.hpp"
 
 class Connection
 {
@@ -357,10 +358,8 @@ ReactorPost BotDB::getLatestReactorPost()
 
 ReactorPost BotDB::_createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData)
 {
-    ReactorPost post;
     int64_t id = resultSetUrls.getInt64(0);
-    post.url = resultSetUrls.getText(1);
-    post.tags = resultSetUrls.getText(2);
+    ReactorPost post(resultSetUrls.getText(1), resultSetUrls.getText(2));
 
     if (resultSetData.isBeforeFirst())
         {
@@ -374,8 +373,10 @@ ReactorPost BotDB::_createReactorPost(PreparedStatment &resultSetUrls, PreparedS
                         {
                             return post;
                         }
-                    post.elements.emplace_back(RawElement(static_cast<ElementType>(resultSetData.getInt(1)),
-                            resultSetData.getText(2), resultSetData.getText(3)));
+                    post.emplaceElement(std::unique_ptr<RawElement>(new RawElement(id,
+                                                       static_cast<ElementType>(resultSetData.getInt(1)),
+                                                       resultSetData.getText(2),
+                                                       resultSetData.getText(3))));
                 }
             while (resultSetData.next());
         }
