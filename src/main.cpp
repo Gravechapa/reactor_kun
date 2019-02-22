@@ -27,28 +27,28 @@ int main()
    ::signal(SIGABRT, &failStackTrace);
 
     try
+    {
+        TgBot::CurlHttpClient curlClient;
+        ReactorKun reactorKun(Config ("configs/config.json"), curlClient);
+        TgBot::TgLongPoll longPoll(reactorKun);
+        while (true)
         {
-            TgBot::CurlHttpClient curlClient;
-            ReactorKun reactorKun(Config ("configs/config.json"), curlClient);
-            TgBot::TgLongPoll longPoll(reactorKun);
-            while (true)
-                {
-                    std:: cout << "Long poll started" << std::endl;
-                    try
-                        {
-                            longPoll.start();
-                        }
-                    catch (std::exception& e)
-                        {
-                            std:: cout << e.what() << std::endl;
-                            std::this_thread::sleep_for(std::chrono::seconds(5));
-                        }
-                }
+            std:: cout << "Long poll started" << std::endl;
+            try
+            {
+                longPoll.start();
+            }
+            catch (std::exception& e)
+            {
+                std:: cout << e.what() << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+            }
         }
+    }
     catch (std::exception& e)
-        {
-            std:: cout << e.what() << std::endl;
-        }
+    {
+        std:: cout << e.what() << std::endl;
+    }
 
     return 0;
 }

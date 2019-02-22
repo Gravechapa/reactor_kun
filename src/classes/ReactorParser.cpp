@@ -87,9 +87,9 @@ ReactorPost ReactorParser::getPostByURL(std::string_view link)
 
     if (!get_page_content(html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
                           nullptr, &post, false))
-        {
-            std::cout << "There were some issues when processing the page: " << link << std::endl;
-        }
+    {
+        std::cout << "There were some issues when processing the page: " << link << std::endl;
+    }
 
     curl_easy_cleanup(curl);
     return post;
@@ -120,32 +120,32 @@ void ReactorParser::update()
     NextPageUrl nextPageUrl;
 
     while (true)
+    {
+        std::string html;
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
+        curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
+
+        _perform(curl);
+
+        if (!get_page_content(html.c_str(), &newReactorUrl, &newReactorData,
+                              &nextPageUrl, nullptr, false))
         {
-            std::string html;
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
-            curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
-
-            _perform(curl);
-
-            if (!get_page_content(html.c_str(), &newReactorUrl, &newReactorData,
-                                  &nextPageUrl, nullptr, false))
-                {
-                    std::cout << "There were some issues when processing the page: " << nextUrl << std::endl;
-                    if (!nextPageUrl.url)
-                    {
-                        std::cout << html << std::endl;
-                        goto exit;
-                    }
-                }
-            nextUrl = DOMAIN + nextPageUrl.url;
-            get_page_content_cleanup(&nextPageUrl);
-
-            if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
-                {
-                    goto exit;
-                }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::cout << "There were some issues when processing the page: " << nextUrl << std::endl;
+            if (!nextPageUrl.url)
+            {
+                std::cout << html << std::endl;
+                goto exit;
+            }
         }
+        nextUrl = DOMAIN + nextPageUrl.url;
+        get_page_content_cleanup(&nextPageUrl);
+
+        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
+        {
+            goto exit;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     exit:
         curl_easy_cleanup(curl);
@@ -175,13 +175,14 @@ void ReactorParser::_perform(CURL *curl)
     int counter = 0;
     CURLcode result;
     while((result = curl_easy_perform(curl)) != CURLE_OK)
+    {
+        if (++counter > 10)
         {
-            if (++counter > 10)
-                {
-                    curl_easy_cleanup(curl);
-                    throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
-                }
-            std::cout << "Curl issue: " << curl_easy_strerror(result) << " Retrying: " << counter << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            curl_easy_cleanup(curl);
+            throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
         }
+        std::cout << "Curl issue: " << curl_easy_strerror(result)
+                  << " Retrying: " << counter << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 }

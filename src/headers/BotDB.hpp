@@ -24,7 +24,6 @@ public:
     static BotDB& getBotDB();
 
 private:
-
     std::string _path;
 
     ReactorPost _createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData);

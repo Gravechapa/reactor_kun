@@ -1,22 +1,21 @@
 #include "ReactorPost.hpp"
+#include "ReactorParser.hpp"
+#include "TgLimits.hpp"
 
 RawElement::RawElement(int64_t id, ElementType type, std::string_view text, std::string_view url):
     _type(type), _text(text), _url(url)
 {
-    /*
-    ContentInfo info;
-    auto element = post.elements.back();
-    switch (post.elements.back().type)
+    /*ContentInfo info;
+    switch (_type)
     {
         case ElementType::IMG:
-            info = ReactorParser::getContentInfo(post.elements.back().url);
-            if (info.size > 0 && info.size < TgLimits::maxPhotoSize && info.type != "")
+            info = ReactorParser::getContentInfo(_url);
+            if (info.size > 0 && info.size < TgLimits::maxPhotoSize && !info.type.empty())
             {
-                post.elements.back()
             }
             break;
         case ElementType::DOCUMENT:
-            info = ReactorParser::getContentInfo(post.elements.back().url);
+            info = ReactorParser::getContentInfo(_url);
             break;
         default:
             break;
