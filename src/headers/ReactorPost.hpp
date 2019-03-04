@@ -14,12 +14,13 @@ enum class ElementType: int32_t
 class RawElement
 {
 public:
-    RawElement(int64_t id, ElementType type, std::string_view text, std::string_view url);
+    RawElement(ElementType type, std::string_view text, std::string_view url);
+    ~RawElement();
 
     ElementType getType() const;
     const std::string& getText() const;
     const std::string& getUrl() const;
-    const std::string& getFileName() const;
+    const std::string getFilePath() const;
     const std::string& getMimeType() const;
 
 private:

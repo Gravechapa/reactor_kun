@@ -372,7 +372,7 @@ ReactorPost BotDB::_createReactorPost(PreparedStatment &resultSetUrls, PreparedS
             {
                 return post;
             }
-            post.emplaceElement(std::unique_ptr<RawElement>(new RawElement(id,
+            post.emplaceElement(std::unique_ptr<RawElement>(new RawElement(
                                                static_cast<ElementType>(resultSetData.getInt(1)),
                                                resultSetData.getText(2),
                                                resultSetData.getText(3))));

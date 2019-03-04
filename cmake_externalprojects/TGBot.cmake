@@ -7,6 +7,7 @@ FetchContent_Declare(
     GIT_TAG            v1.1
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/tgbot"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/tgbot-bin"
+    PATCH_COMMAND      git apply "${CMAKE_SOURCE_DIR}/tgbot.patch"
 )
 
 FetchContent_GetProperties(tgbot)

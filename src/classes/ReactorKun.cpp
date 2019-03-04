@@ -5,6 +5,7 @@
 #include <thread>
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
+#include "FileManager.hpp"
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -217,10 +218,30 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
                 case ElementType::TEXT:
                     break;
                 case ElementType::IMG:
-                    getApi().sendPhoto(listener, rawElement->getUrl(), "", 0, nullptr, "", true);
+                    if (!rawElement->getFilePath().empty() && !rawElement->getMimeType().empty())
+                    {
+                        auto file = TgBot::InputFile::fromFile(rawElement->getFilePath(),
+                                                               rawElement->getMimeType());
+                        getApi().sendPhoto(listener,
+                                           file);
+                    }
+                    else
+                    {
+                        getApi().sendPhoto(listener, rawElement->getUrl(), "", 0, nullptr, "", true);
+                    }
                     break;
                 case ElementType::DOCUMENT:
-                    getApi().sendDocument(listener, rawElement->getUrl(), "", "", 0, nullptr, "", true);
+                    if (!rawElement->getFilePath().empty() && !rawElement->getMimeType().empty())
+                    {
+                        auto file = TgBot::InputFile::fromFile(rawElement->getFilePath(),
+                                                               rawElement->getMimeType());
+                        getApi().sendDocument(listener,
+                                              file);
+                    }
+                    else
+                    {
+                        getApi().sendDocument(listener, rawElement->getUrl(), "", "", 0, nullptr, "", true);
+                    }
                     break;
                 case ElementType::URL:
                     getApi().sendMessage(listener, rawElement->getUrl(), false, 0, nullptr, "", true);
@@ -265,21 +286,25 @@ void ReactorKun::_mailerHandler()
         boost::this_thread::interruption_point();
         ReactorParser::update();
         boost::this_thread::interruption_point();
-        auto posts = BotDB::getBotDB().getNotSentReactorPosts();
-        std::cout << "New posts: " << posts.size() << std::endl;
-        auto listeners = BotDB::getBotDB().getListeners();
 
-        for (auto listener : listeners)
+        //it is necessary to destroy the posts
         {
-            for (auto &post : posts)
+            auto posts = BotDB::getBotDB().getNotSentReactorPosts();
+            std::cout << "New posts: " << posts.size() << std::endl;
+            auto listeners = BotDB::getBotDB().getListeners();
+            for (auto listener : listeners)
             {
-                sendReactorPost(listener, post);
+                for (auto &post : posts)
+                {
+                    sendReactorPost(listener, post);
+                }
             }
         }
 
         BotDB::getBotDB().markReactorPostsAsSent();
         BotDB::getBotDB().deleteOldReactorPosts(1000);
 
+        FileManager::getInstance().collectGarbage();
         boost::this_thread::sleep_for(boost::chrono::minutes(5));
     }
 }

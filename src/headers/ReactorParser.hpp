@@ -19,6 +19,7 @@ public:
     static ReactorPost getPostByURL(std::string_view link);
     static ReactorPost getRandomPost();
     static ContentInfo getContentInfo(std::string_view link);
+    static bool getContent(std::string_view link, std::string_view filePath);
 
 private:
     static void _perform(CURL *curl);

@@ -1,25 +1,50 @@
 #include "ReactorPost.hpp"
 #include "ReactorParser.hpp"
 #include "TgLimits.hpp"
+#include <tgbot/tools/StringTools.h>
+#include "FileManager.hpp"
 
-RawElement::RawElement(int64_t id, ElementType type, std::string_view text, std::string_view url):
+RawElement::RawElement(ElementType type, std::string_view text, std::string_view url):
     _type(type), _text(text), _url(url)
 {
-    /*ContentInfo info;
+    auto sizeLimit = TgLimits::maxFileSize;
     switch (_type)
     {
         case ElementType::IMG:
-            info = ReactorParser::getContentInfo(_url);
-            if (info.size > 0 && info.size < TgLimits::maxPhotoSize && !info.type.empty())
-            {
-            }
-            break;
+            sizeLimit = TgLimits::maxPhotoSize;
+            [[fallthrough]];
         case ElementType::DOCUMENT:
-            info = ReactorParser::getContentInfo(_url);
+        {
+            auto pos = _url.rfind("/");
+            _fileName = _url.substr(pos + 1);
+            auto _encodedString = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+
+            ContentInfo info = ReactorParser::getContentInfo(_encodedString);
+            if (info.size > 0 && info.size < sizeLimit && !info.type.empty())
+            {
+                auto &fileManager = FileManager::getInstance();
+                FileStatus status;
+                while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
+                if (status == FileStatus::READY)
+                {
+                    _mimeType = info.type;
+                    break;
+                }
+            }
+            _fileName.clear();
             break;
+        }
         default:
             break;
-    }*/
+    }
+}
+
+RawElement::~RawElement()
+{
+    if (!_fileName.empty())
+    {
+        FileManager::getInstance().releaseFile(_fileName);
+    }
 }
 
 ElementType RawElement::getType() const
@@ -37,9 +62,9 @@ const std::string& RawElement::getUrl() const
     return _url;
 }
 
-const std::string& RawElement::getFileName() const
+const std::string RawElement::getFilePath() const
 {
-    return _fileName;
+    return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 
 const std::string& RawElement::getMimeType() const

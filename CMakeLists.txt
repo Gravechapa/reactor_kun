@@ -63,13 +63,16 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+set(FILESYSTEM stdc++fs)
 add_executable(${EXECUTABLE} ${SOURCES} ${HEADERS} ${UTF8_STRING_SOURCE})
 if(MSVC)
+    unset(FILESYSTEM)
     set_target_properties(${EXECUTABLE} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 endif()
 add_dependencies(${EXECUTABLE} reactor_parser)
-target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${REACTOR_PARSER_LIB})
+target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl
+    ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${REACTOR_PARSER_LIB} ${FILESYSTEM})
 
 
 #############Copies data files to a binary directory####################################

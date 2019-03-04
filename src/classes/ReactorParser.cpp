@@ -2,6 +2,7 @@
 #include "RustReactorParser.h"
 #include <iostream>
 #include <thread>
+#include <fstream>
 
 static std::string DOMAIN = "http://old.reactor.cc";
 
@@ -19,8 +20,7 @@ bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData
 bool newReactorDataRaw(int64_t id, int32_t type, const char* text, const char* data, void* userData)
 {
     static_cast<ReactorPost*>(userData)->emplaceElement(std::unique_ptr<RawElement>(
-                                                            new RawElement(id,
-                                                                           static_cast<ElementType>(type),
+                                                            new RawElement(static_cast<ElementType>(type),
                                                                            text,
                                                                            data ? data : "")));
     return true;
@@ -42,10 +42,16 @@ size_t WriteCallback(char *contents, size_t size, size_t nmemb, void *userp)
     return size * nmemb;
 }
 
+size_t WriteFileCallback(char *contents, size_t size, size_t nmemb, void *userp)
+{
+    static_cast<std::ofstream*>(userp)->write(contents, size * nmemb);
+    return size * nmemb;
+}
+
 void ReactorParser::setup()
 {
     curl_easy_setopt(_config, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 0L);
 }
 
 void ReactorParser::setProxy(std::string_view address)
@@ -77,7 +83,6 @@ ReactorPost ReactorParser::getPostByURL(std::string_view link)
     ReactorPost post;
 
     auto curl = curl_easy_duphandle(_config);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
 
     std::string html;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
@@ -102,6 +107,7 @@ ReactorPost ReactorParser::getRandomPost()
     curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
+    curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 1L);
     _perform(curl);
     char *url = nullptr;
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);
@@ -155,6 +161,7 @@ ContentInfo ReactorParser::getContentInfo(std::string_view link)
 {
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
+    curl_easy_setopt(curl, CURLOPT_REFERER, DOMAIN.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
     _perform(curl);
@@ -168,6 +175,29 @@ ContentInfo ReactorParser::getContentInfo(std::string_view link)
     }
     curl_easy_cleanup(curl);
     return contentInfo;
+}
+
+bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
+{
+    std::ofstream file(std::string(filePath), std::ofstream::binary);
+    if (!file.is_open())
+    {
+        std::cout << "Can't open file: " << filePath << std::endl;
+        return false;
+    }
+    auto curl = curl_easy_duphandle(_config);
+    curl_easy_setopt(curl, CURLOPT_URL, link.data());
+    curl_easy_setopt(curl, CURLOPT_REFERER, DOMAIN.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFileCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+    _perform(curl);
+    curl_easy_cleanup(curl);
+    if (file.fail())
+    {
+        std::cout << "An error occurred during file \"" << filePath << "\" writing" << std::endl;
+        return false;
+    }
+    return true;
 }
 
 void ReactorParser::_perform(CURL *curl)
