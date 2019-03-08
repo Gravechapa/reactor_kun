@@ -70,16 +70,19 @@ void FileManager::collectGarbage()
     std::lock_guard lockGuard(_lock);
     for(auto it = _index.begin(); it != _index.end();)
     {
-        std::lock_guard counterLock(it->second->second);
-        switch (it->second->first)
+        std::unique_lock counterLock(it->second->second, std::try_to_lock);
+        if (counterLock.owns_lock())
         {
-            case 0:
-                fs::remove(_folderPath.string() + "/" + it->first);
-                [[fallthrough]];
-            case FileState::NOTLOADED:
-                it->second->first = FileState::DELETED;
-                it = _index.erase(it);
-                continue;
+            switch (it->second->first)
+            {
+                case 0:
+                    fs::remove(_folderPath.string() + "/" + it->first);
+                    [[fallthrough]];
+                case FileState::NOTLOADED:
+                    it->second->first = FileState::DELETED;
+                    it = _index.erase(it);
+                    continue;
+            }
         }
         ++it;
     }
