@@ -18,6 +18,12 @@ class FileManager
     using safe_counter = std::pair<int64_t, std::mutex>;
     using shared_counter = std::shared_ptr<safe_counter>;
 
+    enum FileState: short
+    {
+        NOTLOADED = -1,
+        DELETED = -2
+    };
+
 public:
     FileManager(std::string_view path);
     static FileManager& getInstance();

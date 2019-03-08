@@ -15,17 +15,23 @@ void failStackTrace(int signum)
     ::raise(SIGABRT);
 }
 
+[[noreturn]]void cleanup()
+{
+    curl_global_cleanup();
+    exit(0);
+}
 
 int main()
 {
     ::signal(SIGINT, [](int) {
         printf("SIGINT got\n");
-        exit(0);
+        cleanup();
     });
 
    ::signal(SIGSEGV, &failStackTrace);
    ::signal(SIGABRT, &failStackTrace);
 
+    curl_global_init(CURL_GLOBAL_ALL);
     try
     {
         TgBot::CurlHttpClient curlClient;
@@ -50,5 +56,5 @@ int main()
         std:: cout << e.what() << std::endl;
     }
 
-    return 0;
+    cleanup();
 }

@@ -26,7 +26,7 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
     if (it == _index.end())
     {
         data = shared_counter(new safe_counter);
-        data->first = 0;
+        data->first = FileState::NOTLOADED;
         _index.insert(std::pair(fileName, data));
     }
     else
@@ -38,14 +38,16 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
     std::lock_guard counterLock(data->second);
     switch (data->first)
     {
-        case -1:
+        case FileState::DELETED:
             return FileStatus::NOTREADY;
-        case 0:
+        case FileState::NOTLOADED:
             if (!ReactorParser::getContent(link, _folderPath.string() + "/" + fileName.data()))
             {
+                fs::remove(_folderPath.string() + "/" + it->first);
                 return FileStatus::ERROR;
             }
-            [[fallthrough]];
+            data->first = 1;
+            break;
         default:
             data->first += 1;
             break;
@@ -69,16 +71,17 @@ void FileManager::collectGarbage()
     for(auto it = _index.begin(); it != _index.end();)
     {
         std::lock_guard counterLock(it->second->second);
-        if(it->second->first == 0)
+        switch (it->second->first)
         {
-            fs::remove(_folderPath.string() + "/" + it->first);
-            it->second->first = -1;
-            it = _index.erase(it);
+            case 0:
+                fs::remove(_folderPath.string() + "/" + it->first);
+                [[fallthrough]];
+            case FileState::NOTLOADED:
+                it->second->first = FileState::DELETED;
+                it = _index.erase(it);
+                continue;
         }
-        else
-        {
-            ++it;
-        }
+        ++it;
     }
 }
 

@@ -17,7 +17,7 @@ bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData
     return true;
 }
 
-bool newReactorDataRaw(int64_t id, int32_t type, const char* text, const char* data, void* userData)
+bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data, void* userData)
 {
     static_cast<ReactorPost*>(userData)->emplaceElement(std::unique_ptr<RawElement>(
                                                             new RawElement(static_cast<ElementType>(type),
