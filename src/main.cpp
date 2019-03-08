@@ -10,9 +10,9 @@
 
 void failStackTrace(int signum)
 {
-    ::signal(signum, SIG_DFL);
+    std::signal(signum, SIG_DFL);
     std::cerr << boost::stacktrace::stacktrace();
-    ::raise(SIGABRT);
+    std::raise(SIGABRT);
 }
 
 [[noreturn]]void cleanup()
@@ -23,13 +23,14 @@ void failStackTrace(int signum)
 
 int main()
 {
-    ::signal(SIGINT, [](int) {
-        printf("SIGINT got\n");
-        cleanup();
-    });
+    std::signal(SIGINT, [](int)
+        {
+            printf("SIGINT got\n");
+            cleanup();
+        });
 
-   ::signal(SIGSEGV, &failStackTrace);
-   ::signal(SIGABRT, &failStackTrace);
+   std::signal(SIGSEGV, &failStackTrace);
+   std::signal(SIGABRT, &failStackTrace);
 
     curl_global_init(CURL_GLOBAL_ALL);
     try

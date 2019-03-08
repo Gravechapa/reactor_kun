@@ -20,6 +20,11 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     {
         ReactorParser::init();
     }
+    auto listeners = BotDB::getBotDB().getListeners();
+    for (auto listener : listeners)
+    {
+        _locks[listener];
+    }
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -62,6 +67,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         {
             return;
         }
+        _locks[chatID];
         sendMessage(chatID, "The Beast is Back");
         auto post = BotDB::getBotDB().getLatestReactorPost();
         sendReactorPost(chatID, post);
@@ -72,6 +78,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     {
         if (BotDB::getBotDB().deleteListener(chatID))
         {
+            _locks.erase(chatID);
             sendMessage(chatID, "Удалил.");
             return;
         }
@@ -176,6 +183,7 @@ void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 {
     try
     {
+        std::lock_guard lockGuard(_locks.at(listener));
         getApi().sendMessage(listener, message.data());
         std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
     }
@@ -187,6 +195,7 @@ void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 
 void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 {
+    std::lock_guard lockGuard(_locks.at(listener));
     auto timePoint = std::chrono::high_resolution_clock::now();
     try
     {
@@ -292,12 +301,11 @@ void ReactorKun::_mailerHandler()
         {
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
             std::cout << "New posts: " << posts.size() << std::endl;
-            auto listeners = BotDB::getBotDB().getListeners();
-            for (auto listener : listeners)
+            for (auto &listener : _locks)
             {
                 for (auto &post : posts)
                 {
-                    sendReactorPost(listener, post);
+                    sendReactorPost(listener.first, post);
                 }
             }
         }
@@ -312,7 +320,8 @@ void ReactorKun::_mailerHandler()
 
 void ReactorKun::_trim(std::string &string)
 {
-    string.erase(string.begin(),std::find_if(string.begin(), string.end(), [](int ch) {
+    string.erase(string.begin(),std::find_if(string.begin(), string.end(), [](int ch)
+        {
             return !std::isspace(ch);
         }));
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <tgbot/tgbot.h>
 #include "Config.hpp"
 #include "BotDB.hpp"
@@ -17,6 +18,8 @@ private:
     void _onUpdate(TgBot::Message::Ptr message);
     [[noreturn]] void _mailerHandler();
     void _trim(std::string &string);
+
+    std::map<int64_t, std::mutex> _locks;
 
     boost::thread _mailer;
     std:: string _botName;
