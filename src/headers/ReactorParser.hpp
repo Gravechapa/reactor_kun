@@ -2,6 +2,8 @@
 #include <curl/curl.h>
 #include <string>
 #include "BotDB.hpp"
+#include <mutex>
+#include "AuxiliaryFunctions.hpp"
 
 struct ContentInfo
 {
@@ -28,4 +30,8 @@ private:
 
     static std::string _tag;
     static int32_t _overload;
+
+    static std::mutex _lock;
+    static std::chrono::high_resolution_clock::time_point _timePoint;
+    static std::chrono::milliseconds _delay;
 };

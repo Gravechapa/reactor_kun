@@ -2,7 +2,6 @@
 #include <curl/curl.h>
 #include "ReactorParser.hpp"
 #include <iostream>
-#include <thread>
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
@@ -188,11 +187,12 @@ void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 
 void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 {
+    auto timePoint = std::chrono::high_resolution_clock::now();
     try
     {
         getApi().sendMessage(listener, "*Ссылка:* " + post.getUrl() + "\n*Теги:* " + post.getTags(),
                          true, 0, nullptr, "Markdown", false);
-        std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
+        wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
     }
     catch (std::exception &e)
     {
@@ -210,7 +210,7 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
                     auto splittedString = utf8Text.utf8_substr(i * 4096, 4096);
                     getApi().sendMessage(listener, splittedString.utf8_sstring(),
                                          true, 0, nullptr, "", true);
-                    std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
+                    wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
                 }
             }
             switch (rawElement->getType())
@@ -247,7 +247,7 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
                     getApi().sendMessage(listener, rawElement->getUrl(), false, 0, nullptr, "", true);
                     break;
             }
-            std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
+            wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
         }
         catch (std::exception &e)
         {
@@ -270,7 +270,7 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
     {
         getApi().sendMessage(listener, u8"🔚🔚🔚🔚🔚🔚🔚🔚つ ◕_◕ ༽つ🔚🔚🔚🔚🔚🔚🔚🔚",
                              true, 0, nullptr, "", true);
-        std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
+        wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
     }
     catch (std::exception &e)
     {
@@ -280,6 +280,7 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 
 void ReactorKun::_mailerHandler()
 {
+    auto timePoint = std::chrono::high_resolution_clock::now();
     boost::this_thread::interruption_enabled();
     while (true)
     {
@@ -305,7 +306,7 @@ void ReactorKun::_mailerHandler()
         BotDB::getBotDB().deleteOldReactorPosts(1000);
 
         FileManager::getInstance().collectGarbage();
-        boost::this_thread::sleep_for(boost::chrono::minutes(5));
+        wait(std::chrono::minutes(5), timePoint);
     }
 }
 

@@ -9,6 +9,11 @@ static std::string DOMAIN = "http://old.reactor.cc";
 std::string ReactorParser::_tag = "/new";
 int ReactorParser::_overload = 2000;
 
+std::mutex ReactorParser::_lock;
+std::chrono::high_resolution_clock::time_point ReactorParser::_timePoint =
+        std::chrono::high_resolution_clock::now();
+std::chrono::milliseconds ReactorParser::_delay = std::chrono::milliseconds(250);
+
 CURL * const ReactorParser::_config{curl_easy_init()};
 
 bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
@@ -150,7 +155,6 @@ void ReactorParser::update()
         {
             goto exit;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     exit:
@@ -202,6 +206,10 @@ bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
 
 void ReactorParser::_perform(CURL *curl)
 {
+    std::unique_lock lockGuard(_lock);
+    wait(_delay, _timePoint);
+    lockGuard.unlock();
+
     int counter = 0;
     CURLcode result;
     while((result = curl_easy_perform(curl)) != CURLE_OK)
