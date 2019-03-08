@@ -20,7 +20,7 @@ FileManager::FileManager(std::string_view path)
 
 FileStatus FileManager::getFile(std::string_view link, std::string_view fileName)
 {
-    std::unique_lock lockGuard(_lock);
+    SpinGuard lockGuard(_lock);
     auto it = _index.find(fileName.data());
     shared_counter data;
     if (it == _index.end())
@@ -57,7 +57,7 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
 
 void FileManager::releaseFile(std::string_view fileName)
 {
-    std::unique_lock lockGuard(_lock);
+    SpinGuard lockGuard(_lock);
     auto data = _index.at(fileName.data());
     lockGuard.unlock();
 
@@ -67,7 +67,7 @@ void FileManager::releaseFile(std::string_view fileName)
 
 void FileManager::collectGarbage()
 {
-    std::lock_guard lockGuard(_lock);
+    SpinGuard lockGuard(_lock);
     for(auto it = _index.begin(); it != _index.end();)
     {
         std::unique_lock counterLock(it->second->second, std::try_to_lock);

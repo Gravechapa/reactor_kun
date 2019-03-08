@@ -3,6 +3,7 @@
 #include "filesystem"
 #include <map>
 #include <mutex>
+#include "SpinGuard.hpp"
 
 namespace fs = std::filesystem;
 
@@ -37,5 +38,5 @@ public:
 private:
     fs::path _folderPath;
     std::map<std::string, shared_counter> _index;
-    std::mutex _lock;
+    std::atomic_flag _lock = ATOMIC_FLAG_INIT;
 };
