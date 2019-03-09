@@ -214,11 +214,33 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
             if (!rawElement->getText().empty())
             {
                 UTF8string utf8Text(rawElement->getText());
-                for (unsigned int i = 0; i <= utf8Text.utf8_length() / 4096; ++i)
+                size_t pos = 0;
+                size_t skip = 0;
+                while (pos < utf8Text.utf8_length())
                 {
-                    auto splittedString = utf8Text.utf8_substr(i * 4096, 4096);
+                    size_t count = TgLimits::maxMessageUtf8Char;
+                    if (pos + count <= utf8Text.utf8_length())
+                    {
+                        bool check = false;
+                        for (size_t i = count; i > skip; --i)
+                        {
+                            if (utf8Text.utf8_at(pos + i - 1) == " ")
+                            {
+                                skip = count - i;
+                                count = i;
+                                check = true;
+                                break;
+                            }
+                        }
+                        if (!check)
+                        {
+                            skip = 0;
+                        }
+                    }
+                    auto splittedString = utf8Text.utf8_substr(pos, count);
                     getApi().sendMessage(listener, splittedString.utf8_sstring(),
                                          true, 0, nullptr, "", true);
+                    pos += count;
                     wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
                 }
             }
