@@ -8,3 +8,11 @@ inline void wait(const std::chrono::duration<Rep, Period>& duration,
     std::this_thread::sleep_for(duration - (std::chrono::high_resolution_clock::now() - time_point));
     time_point = std::chrono::high_resolution_clock::now();
 }
+
+struct Dimension
+{
+    int32_t width{0};
+    int32_t height{0};
+};
+
+Dimension getJpegResolution(std::string_view path);

@@ -3,39 +3,65 @@
 #include "TgLimits.hpp"
 #include <tgbot/tools/StringTools.h>
 #include "FileManager.hpp"
+#include "AuxiliaryFunctions.hpp"
 
 RawElement::RawElement(ElementType type, std::string_view text, std::string_view url):
     _type(type), _text(text), _url(url)
 {
-    auto sizeLimit = TgLimits::maxFileSize;
-    switch (_type)
+    if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
     {
-        case ElementType::IMG:
-            sizeLimit = TgLimits::maxPhotoSize;
-            [[fallthrough]];
-        case ElementType::DOCUMENT:
-        {
-            auto pos = _url.rfind("/");
-            _fileName = _url.substr(pos + 1);
-            auto _encodedString = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+        auto fileSizeLimit = TgLimits::maxFileSize;
+        auto photoSizeLimit = TgLimits::maxPhotoSize;
 
-            ContentInfo info = ReactorParser::getContentInfo(_encodedString);
-            if (info.size > 0 && info.size < sizeLimit && !info.type.empty())
-            {
-                auto &fileManager = FileManager::getInstance();
-                FileStatus status;
-                while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
-                if (status == FileStatus::READY)
+        auto pos = _url.rfind("/");
+        _fileName = _url.substr(pos + 1);
+        auto _encodedString = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+
+        ContentInfo info = ReactorParser::getContentInfo(_encodedString);
+
+        if (info.size == 0 || info.type.empty())
+        {
+            return;
+        }
+
+        switch (_type)
+        {
+            case ElementType::IMG:
+                if (info.size <= photoSizeLimit && info.type == "image/jpeg")
                 {
-                    _mimeType = info.type;
                     break;
                 }
+                _type = ElementType::DOCUMENT;
+                [[fallthrough]];
+            case ElementType::DOCUMENT:
+            {
+                if (info.size > fileSizeLimit)
+                {
+                    _fileName.clear();
+                    _type = ElementType::URL;
+                    return;
+                }
             }
-            _fileName.clear();
-            break;
         }
-        default:
-            break;
+
+        auto &fileManager = FileManager::getInstance();
+        FileStatus status;
+        while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
+        if (status == FileStatus::READY)
+        {
+            _mimeType = info.type;
+            if (_type == ElementType::IMG)
+            {
+                auto res = getJpegResolution(getFilePath());
+                if (res.width > TgLimits::maxPhotoDimension
+                        || res.height > TgLimits::maxPhotoDimension)
+                {
+                    _type = ElementType::DOCUMENT;
+                }
+            }
+            return;
+        }
+        _fileName.clear();
     }
 }
 
