@@ -23,7 +23,11 @@ public:
     const std::string getFilePath() const;
     const std::string& getMimeType() const;
 
+    static void isDownloadingEnable(bool flag);
+
 private:
+    static bool _downloadingEnable;
+
     ElementType _type;
     std::string _text;
     std::string _url;

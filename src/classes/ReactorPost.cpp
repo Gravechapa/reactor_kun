@@ -5,13 +5,30 @@
 #include "FileManager.hpp"
 #include "AuxiliaryFunctions.hpp"
 
+bool RawElement::_downloadingEnable = true;
+
+void RawElement::isDownloadingEnable(bool flag)
+{
+    _downloadingEnable = flag;
+}
+
 RawElement::RawElement(ElementType type, std::string_view text, std::string_view url):
     _type(type), _text(text), _url(url)
 {
     if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
     {
-        auto fileSizeLimit = TgLimits::maxFileSize;
-        auto photoSizeLimit = TgLimits::maxPhotoSize;
+        int32_t fileSizeLimit;
+        int32_t photoSizeLimit;
+        if (_downloadingEnable)
+        {
+            fileSizeLimit = TgLimits::maxFileSize;
+            photoSizeLimit = TgLimits::maxPhotoSize;
+        }
+        else
+        {
+            fileSizeLimit = TgLimits::maxFileSizeByUrl;
+            photoSizeLimit = TgLimits::maxPhotoSizeByUrl;
+        }
 
         auto pos = _url.rfind("/");
         _fileName = _url.substr(pos + 1);
@@ -44,22 +61,25 @@ RawElement::RawElement(ElementType type, std::string_view text, std::string_view
             }
         }
 
-        auto &fileManager = FileManager::getInstance();
-        FileStatus status;
-        while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
-        if (status == FileStatus::READY)
+        if (_downloadingEnable)
         {
-            _mimeType = info.type;
-            if (_type == ElementType::IMG)
+            auto &fileManager = FileManager::getInstance();
+            FileStatus status;
+            while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
+            if (status == FileStatus::READY)
             {
-                auto res = getJpegResolution(getFilePath());
-                if (res.width > TgLimits::maxPhotoDimension
-                        || res.height > TgLimits::maxPhotoDimension)
+                _mimeType = info.type;
+                if (_type == ElementType::IMG)
                 {
-                    _type = ElementType::DOCUMENT;
+                    auto res = getJpegResolution(getFilePath());
+                    if (res.width > TgLimits::maxPhotoDimension
+                            || res.height > TgLimits::maxPhotoDimension)
+                    {
+                        _type = ElementType::DOCUMENT;
+                    }
                 }
+                return;
             }
-            return;
         }
         _fileName.clear();
     }

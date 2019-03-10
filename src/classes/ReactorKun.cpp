@@ -25,6 +25,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     {
         _locks[listener];
     }
+    //RawElement::isDownloadingEnable(false);
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
