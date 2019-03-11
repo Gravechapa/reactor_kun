@@ -5,6 +5,7 @@
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
+#include "SpinGuard.hpp"
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -19,11 +20,6 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     if (BotDB::getBotDB().empty())
     {
         ReactorParser::init();
-    }
-    auto listeners = BotDB::getBotDB().getListeners();
-    for (auto listener : listeners)
-    {
-        _locks[listener];
     }
     //RawElement::isDownloadingEnable(false);
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
@@ -68,7 +64,6 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         {
             return;
         }
-        _locks[chatID];
         sendMessage(chatID, "The Beast is Back");
         auto post = BotDB::getBotDB().getLatestReactorPost();
         sendReactorPost(chatID, post);
@@ -79,7 +74,6 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     {
         if (BotDB::getBotDB().deleteListener(chatID))
         {
-            _locks.erase(chatID);
             sendMessage(chatID, "Удалил.");
             return;
         }
@@ -182,9 +176,26 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
 void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 {
+    SpinGuard lockGuard(_lock);
+    auto it = _locks.find(listener);
+    if (it != _locks.end())
+    {
+        auto listenerMutex = it->second;
+        lockGuard.unlock();
+        std::lock_guard messageLock(*listenerMutex);
+        _sendMessage(listener, message);
+    }
+    else
+    {
+        lockGuard.unlock();
+        _sendMessage(listener, message);
+    }
+}
+
+void ReactorKun::_sendMessage(int64_t listener, std::string_view message)
+{
     try
     {
-        std::lock_guard lockGuard(_locks.at(listener));
         getApi().sendMessage(listener, message.data());
         std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
     }
@@ -196,7 +207,24 @@ void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 
 void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 {
-    std::lock_guard lockGuard(_locks.at(listener));
+    SpinGuard lockGuard(_lock);
+    auto it = _locks.find(listener);
+    if (it != _locks.end())
+    {
+        auto listenerMutex = it->second;
+        lockGuard.unlock();
+        std::lock_guard messageLock(*listenerMutex);
+        _sendReactorPost(listener, post);
+    }
+    else
+    {
+        lockGuard.unlock();
+        _sendReactorPost(listener, post);
+    }
+}
+
+void ReactorKun::_sendReactorPost(int64_t listener, ReactorPost &post)
+{
     auto timePoint = std::chrono::high_resolution_clock::now();
     try
     {
@@ -322,15 +350,24 @@ void ReactorKun::_mailerHandler()
 
         //it is necessary to destroy the posts
         {
+            auto listeners = BotDB::getBotDB().getListeners();
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
             std::cout << "New posts: " << posts.size() << std::endl;
-            for (auto &listener : _locks)
+            SpinGuard lockGuard(_lock);
+            for (auto &listener : listeners)
+            {
+                _locks.insert(std::pair(listener, std::shared_ptr<std::mutex>(new std::mutex())));
+            }
+            lockGuard.unlock();
+            for (auto &listener : listeners)
             {
                 for (auto &post : posts)
                 {
-                    sendReactorPost(listener.first, post);
+                    sendReactorPost(listener, post);
                 }
             }
+            lockGuard.lock();
+            _locks.clear();
         }
 
         BotDB::getBotDB().markReactorPostsAsSent();
