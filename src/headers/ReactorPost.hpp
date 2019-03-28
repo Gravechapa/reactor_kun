@@ -2,14 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
-
-enum class ElementType: int32_t
-{
-    TEXT = 0,
-    IMG,
-    DOCUMENT,
-    URL,
-};
+#include "BotMessage.hpp"
 
 class RawElement
 {
@@ -38,10 +31,10 @@ private:
     const RawElement& operator=(const RawElement&) = delete;
 };
 
-class ReactorPost
+class ReactorPost: public BotMessage
 {
 public:
-    ReactorPost(){}
+    ReactorPost(): BotMessage(ElementType::REACTORPOST){}
     ReactorPost(std::string_view url, std::string_view tags);
     ReactorPost(ReactorPost&& source) noexcept;
     ReactorPost& operator=(ReactorPost&& source) noexcept;

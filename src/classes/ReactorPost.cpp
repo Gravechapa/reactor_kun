@@ -118,12 +118,13 @@ const std::string& RawElement::getMimeType() const
     return _mimeType;
 }
 
-ReactorPost::ReactorPost(std::string_view url, std::string_view tags): _url(url), _tags(tags)
+ReactorPost::ReactorPost(std::string_view url, std::string_view tags):
+    BotMessage(ElementType::REACTORPOST), _url(url), _tags(tags)
 {
 }
 
 
-ReactorPost::ReactorPost(ReactorPost&& source) noexcept
+ReactorPost::ReactorPost(ReactorPost&& source) noexcept: BotMessage(ElementType::REACTORPOST)
 {
     *this = std::move(source);
 }

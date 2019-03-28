@@ -5,6 +5,7 @@
 #include "BotDB.hpp"
 #include <boost/thread.hpp>
 
+class ThreadPool;
 class ReactorKun : public TgBot::Bot
 {
 public:
@@ -15,7 +16,8 @@ public:
     void sendReactorPost(int64_t listener, ReactorPost &post);
 
 private:
-    void _sendMessage(int64_t listener, std::string_view message);
+    friend ThreadPool;
+    void _sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message);
     void _sendReactorPost(int64_t listener, ReactorPost &post);
 
     void _onUpdate(TgBot::Message::Ptr message);

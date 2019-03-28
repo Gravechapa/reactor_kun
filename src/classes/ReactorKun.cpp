@@ -174,7 +174,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     }
 }
 
-void ReactorKun::sendMessage(int64_t listener, std::string_view message)
+/*void ReactorKun::sendMessage(int64_t listener, std::string_view message)
 {
     SpinGuard lockGuard(_lock);
     auto it = _locks.find(listener);
@@ -190,22 +190,41 @@ void ReactorKun::sendMessage(int64_t listener, std::string_view message)
         lockGuard.unlock();
         _sendMessage(listener, message);
     }
-}
+}*/
 
-void ReactorKun::_sendMessage(int64_t listener, std::string_view message)
+void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message)
 {
-    try
+    switch (message->getType())
     {
-        getApi().sendMessage(listener, message.data());
-        std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
-    }
-    catch (std::exception &e)
-    {
-        std::cout << e.what() << std::endl;
+        case ElementType::REACTORPOST:
+            _sendReactorPost(listener, *static_cast<ReactorPost*>(message.get()));
+            break;
+        case ElementType::TEXT:
+            try
+            {
+                getApi().sendMessage(listener, static_cast<TextMessage*>(message.get())->text);
+            }
+            catch (std::exception &e)
+            {
+                std::cout << e.what() << std::endl;
+            }
+            break;
+    case ElementType::IMG:
+            try
+            {
+                getApi().sendPhoto(listener, static_cast<ImgMessage*>(message.get())->url);
+            }
+            catch (std::exception &e)
+            {
+                std::cout << e.what() << std::endl;
+            }
+            break;
+        default:
+            break;
     }
 }
 
-void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
+/*void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
 {
     SpinGuard lockGuard(_lock);
     auto it = _locks.find(listener);
@@ -221,7 +240,7 @@ void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
         lockGuard.unlock();
         _sendReactorPost(listener, post);
     }
-}
+}*/
 
 void ReactorKun::_sendReactorPost(int64_t listener, ReactorPost &post)
 {

@@ -11,4 +11,5 @@ public:
     static const int32_t maxFileSizeByUrl;
     static const uint32_t maxMessageUtf8Char;
     static const int32_t maxPhotoDimension;
+    static const int32_t maxMessagePerSecond;
 };

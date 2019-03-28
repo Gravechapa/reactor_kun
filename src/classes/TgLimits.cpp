@@ -6,3 +6,4 @@ const int32_t TgLimits::maxPhotoSizeByUrl = 0x500000;
 const int32_t TgLimits::maxFileSizeByUrl = 0x1400000;
 const uint32_t TgLimits::maxMessageUtf8Char = 4096;
 const int32_t TgLimits::maxPhotoDimension = 1280;
+const int32_t TgLimits::maxMessagePerSecond = 30;
