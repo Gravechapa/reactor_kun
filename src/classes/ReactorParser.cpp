@@ -18,7 +18,7 @@ CURL * const ReactorParser::_config{curl_easy_init()};
 
 bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
 {
-    static_cast<ReactorPost*>(userData)->setHeader(DOMAIN + url, tags);
+    static_cast<ReactorPost*>(userData)->setHeader(url, tags);
     return true;
 }
 
@@ -33,7 +33,7 @@ bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data
 
 bool newReactorUrl(int64_t id, const char* url, const char* tags, void*)
 {
-    return BotDB::getBotDB().newReactorUrl(id, DOMAIN + url, tags);
+    return BotDB::getBotDB().newReactorUrl(id, url, tags);
 }
 
 bool newReactorData(int64_t id, int32_t type, const char* text, const char* data, void*)
@@ -78,7 +78,7 @@ void ReactorParser::init()
     curl_easy_cleanup(curl);
 
     NextPageUrl nextPageUrl;
-    get_page_content(html.c_str(), &newReactorUrl, &newReactorData,
+    get_page_content(start_page.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
                      &nextPageUrl, nullptr, false);
     get_page_content_cleanup(&nextPageUrl);
 }
@@ -95,7 +95,7 @@ ReactorPost ReactorParser::getPostByURL(std::string_view link)
 
     _perform(curl);
 
-    if (!get_page_content(html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
+    if (!get_page_content(link.data(), html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
                           nullptr, &post, false))
     {
         std::cout << "There were some issues when processing the page: " << link << std::endl;
@@ -138,7 +138,7 @@ void ReactorParser::update()
 
         _perform(curl);
 
-        if (!get_page_content(html.c_str(), &newReactorUrl, &newReactorData,
+        if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
                               &nextPageUrl, nullptr, false))
         {
             std::cout << "There were some issues when processing the page: " << nextUrl << std::endl;
@@ -148,7 +148,7 @@ void ReactorParser::update()
                 goto exit;
             }
         }
-        nextUrl = DOMAIN + nextPageUrl.url;
+        nextUrl = nextPageUrl.url;
         get_page_content_cleanup(&nextPageUrl);
 
         if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
