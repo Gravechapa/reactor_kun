@@ -10,7 +10,7 @@ ThreadPool::ThreadPool(ReactorKun &bot): _bot(bot)
 {
     auto poolSize = std::thread::hardware_concurrency()?
                 std::thread::hardware_concurrency():_defauldThreadsNumber;
-    for (int i = 0; i < poolSize; ++i)
+    for (unsigned int i = 0; i < poolSize; ++i)
     {
         _threads.emplace_back(std::thread(&ThreadPool::_sender, this));
     }
@@ -78,9 +78,8 @@ void ThreadPool::_scheduler()
                     it = _scheduleMap.erase(it);
                     continue;
                 }
-                //TODO make tg limits
                 if (std::chrono::high_resolution_clock::now() - it->second.lastSend >
-                        std::chrono::seconds(3))
+                        std::chrono::seconds(60 / TgLimits::maxMessagePerGroupPerMin))
                 {
                     if (!it->second.highPriority.empty())
                     {
