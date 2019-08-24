@@ -2,7 +2,6 @@
 #include <curl/curl.h>
 #include "ReactorParser.hpp"
 #include <iostream>
-#include <utf8_string.hpp>
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
 #include "SpinGuard.hpp"
@@ -21,7 +20,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     {
         ReactorParser::init();
     }
-    //RawElement::isDownloadingEnable(false);
+    //DataMessage::isDownloadingEnable(false);
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -64,9 +63,9 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         {
             return;
         }
-        sendMessage(chatID, "The Beast is Back");
+        _threadPool.addTextToSend({chatID}, "The Beast is Back");
         auto post = BotDB::getBotDB().getLatestReactorPost();
-        sendReactorPost(chatID, post);
+        _threadPool.addPostsToSend({chatID}, post);
         return;
     }
 
@@ -74,7 +73,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     {
         if (BotDB::getBotDB().deleteListener(chatID))
         {
-            sendMessage(chatID, "Удалил.");
+            _threadPool.addTextToSend({chatID}, "Удалил.");
             return;
         }
         return;
@@ -83,16 +82,16 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
     if (text == getLatestCMD)
     {
         auto post = BotDB::getBotDB().getLatestReactorPost();
-        sendReactorPost(chatID, post);
+        _threadPool.addPostsToSend({chatID}, post);
         return;
     }
 
     if (text == getRandomCMD)
     {
         auto post = ReactorParser::getRandomPost();
-        if (!post.getUrl().empty())
+        if (!post.empty())
         {
-            sendReactorPost(chatID, post);
+            _threadPool.addPostsToSend({chatID}, post);
         }
         return;
     }
@@ -105,18 +104,18 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         if (std::regex_match(postNumber, numberRegex))
         {
             auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
-            if (!post.getUrl().empty())
+            if (!post.empty())
             {
-                sendReactorPost(chatID, post);
+                _threadPool.addPostsToSend({chatID}, post);
             }
             else
             {
-                sendMessage(chatID, "Пост не найден.");
+                _threadPool.addTextToSend({chatID}, "Пост не найден.");
             }
         }
         else
         {
-            sendMessage(chatID, "Неправильный номер поста.");
+            _threadPool.addTextToSend({chatID}, "Неправильный номер поста.");
         }
         return;
     }
@@ -128,25 +127,16 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
     if (text == secretCMD)
     {
-            //TODO
-        try
+
+        if (message->chat->username != _config.getSU())
         {
-            if (message->chat->username != _config.getSU())
-            {
-                getApi().sendPhoto(chatID, "http://i3.kym-cdn.com/photos/images/newsfeed/000/544/719/a6c.png");
-            }
-            else
-            {
-                getApi().sendPhoto(chatID, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
-            }
+            _threadPool.addImgToSend({chatID}, "http://i3.kym-cdn.com/photos/images/newsfeed/000/544/719/a6c.png");
         }
-        catch (std::exception &e)
+        else
         {
-                std::cout << e.what() << std::endl;
+            _threadPool.addImgToSend({chatID}, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
         }
-        std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
         return;
-        //TODO
     }
 
     static const auto reactorUrlRegex =
@@ -159,182 +149,97 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         }
         auto postNumber = text.substr(text.rfind("/") + 1);
         auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
-        if (!post.getUrl().empty())
+        if (!post.empty())
         {
-            sendReactorPost(chatID, post);
+            _threadPool.addPostsToSend({chatID}, post);
         }
         else
         {
-            sendMessage(chatID, "Пост не найден.");
+            _threadPool.addTextToSend({chatID}, "Пост не найден.");
         }
     }
     else
     {
-        sendMessage(chatID, "Команда не найдена.");
+        _threadPool.addTextToSend({chatID}, "Команда не найдена.");
     }
 }
 
-void ReactorKun::sendMessage(int64_t listener, std::string_view message)
-{
-    SpinGuard lockGuard(_lock);
-    auto it = _locks.find(listener);
-    if (it != _locks.end())
-    {
-        auto listenerMutex = it->second;
-        lockGuard.unlock();
-        std::lock_guard messageLock(*listenerMutex);
-        _sendMessage(listener, message);
-    }
-    else
-    {
-        lockGuard.unlock();
-        _sendMessage(listener, message);
-    }
-}
-
-void ReactorKun::_sendMessage(int64_t listener, std::string_view message)
+void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message)
 {
     try
     {
-        getApi().sendMessage(listener, message.data());
-        std::this_thread::sleep_for(std::chrono::seconds(TgLimits::messageDelay));
+        switch (message->getType())
+        {
+            case ElementType::HEADER:
+            {
+                auto header = static_cast<PostHeaderMessage*>(message.get());
+                getApi().sendMessage(listener, "*Ссылка:* " + header->getUrl() +
+                                     "\n*Теги:* " + header->getTags(),
+                                     true, 0, nullptr, "Markdown", false);
+                break;
+            }
+            case ElementType::TEXT:
+                getApi().sendMessage(listener, static_cast<TextMessage*>(message.get())->getText(),
+                                     true, 0, nullptr, "", true);
+                break;
+            case ElementType::URL:
+                getApi().sendMessage(listener, static_cast<DataMessage*>(message.get())->getUrl(),
+                                     false, 0, nullptr, "", true);
+                break;
+            case ElementType::IMG:
+            {
+                auto img = static_cast<DataMessage*>(message.get());
+                if (!img->getFilePath().empty() && !img->getMimeType().empty())
+                {
+                    auto file = TgBot::InputFile::fromFile(img->getFilePath(),
+                                                           img->getMimeType());
+                    getApi().sendPhoto(listener,
+                                       file);
+                }
+                else
+                {
+                    getApi().sendPhoto(listener, img->getUrl(), "", 0, nullptr, "", true);
+                }
+                break;
+            }
+            case ElementType::DOCUMENT:
+            {
+                auto doc = static_cast<DataMessage*>(message.get());
+                if (!doc->getFilePath().empty() && !doc->getMimeType().empty())
+                {
+                    auto file = TgBot::InputFile::fromFile(doc->getFilePath(),
+                                                           doc->getMimeType());
+                    getApi().sendDocument(listener,
+                                          file);
+                }
+                else
+                {
+                    getApi().sendDocument(listener, doc->getUrl(), "", "", 0, nullptr, "", true);
+                }
+                break;
+            }
+            case ElementType::FOOTER:
+                getApi().sendMessage(listener, u8"🔚🔚🔚🔚🔚🔚🔚🔚つ ◕_◕ ༽つ🔚🔚🔚🔚🔚🔚🔚🔚",
+                                     true, 0, nullptr, "", true);
+                break;
+        }
     }
     catch (std::exception &e)
     {
         std::cout << e.what() << std::endl;
-    }
-}
-
-void ReactorKun::sendReactorPost(int64_t listener, ReactorPost &post)
-{
-    SpinGuard lockGuard(_lock);
-    auto it = _locks.find(listener);
-    if (it != _locks.end())
-    {
-        auto listenerMutex = it->second;
-        lockGuard.unlock();
-        std::lock_guard messageLock(*listenerMutex);
-        _sendReactorPost(listener, post);
-    }
-    else
-    {
-        lockGuard.unlock();
-        _sendReactorPost(listener, post);
-    }
-}
-
-void ReactorKun::_sendReactorPost(int64_t listener, ReactorPost &post)
-{
-    auto timePoint = std::chrono::high_resolution_clock::now();
-    try
-    {
-        getApi().sendMessage(listener, "*Ссылка:* " + post.getUrl() + "\n*Теги:* " + post.getTags(),
-                         true, 0, nullptr, "Markdown", false);
-        wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
-    }
-    catch (std::exception &e)
-    {
-        std::cout << e.what() << std::endl;
-    }
-    for (auto &rawElement : post.getElements())
-    {
         try
         {
-            if (!rawElement->getText().empty())
+            if (message->getType() == ElementType::IMG || message->getType() ==ElementType::DOCUMENT)
             {
-                UTF8string utf8Text(rawElement->getText());
-                size_t pos = 0;
-                size_t skip = 0;
-                while (pos < utf8Text.utf8_length())
-                {
-                    size_t count = TgLimits::maxMessageUtf8Char;
-                    if (pos + count <= utf8Text.utf8_length())
-                    {
-                        bool check = false;
-                        for (size_t i = count; i > skip; --i)
-                        {
-                            if (utf8Text.utf8_at(pos + i - 1) == " ")
-                            {
-                                skip = count - i;
-                                count = i;
-                                check = true;
-                                break;
-                            }
-                        }
-                        if (!check)
-                        {
-                            skip = 0;
-                        }
-                    }
-                    auto splittedString = utf8Text.utf8_substr(pos, count);
-                    getApi().sendMessage(listener, splittedString.utf8_sstring(),
-                                         true, 0, nullptr, "", true);
-                    pos += count;
-                    wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
-                }
+                getApi().sendMessage(listener,"Не могу отправить: " +
+                                     static_cast<DataMessage*>(message.get())->getUrl(),
+                                     false, 0, nullptr, "", true);
             }
-            switch (rawElement->getType())
-            {
-                case ElementType::TEXT:
-                    break;
-                case ElementType::IMG:
-                    if (!rawElement->getFilePath().empty() && !rawElement->getMimeType().empty())
-                    {
-                        auto file = TgBot::InputFile::fromFile(rawElement->getFilePath(),
-                                                               rawElement->getMimeType());
-                        getApi().sendPhoto(listener,
-                                           file);
-                    }
-                    else
-                    {
-                        getApi().sendPhoto(listener, rawElement->getUrl(), "", 0, nullptr, "", true);
-                    }
-                    break;
-                case ElementType::DOCUMENT:
-                    if (!rawElement->getFilePath().empty() && !rawElement->getMimeType().empty())
-                    {
-                        auto file = TgBot::InputFile::fromFile(rawElement->getFilePath(),
-                                                               rawElement->getMimeType());
-                        getApi().sendDocument(listener,
-                                              file);
-                    }
-                    else
-                    {
-                        getApi().sendDocument(listener, rawElement->getUrl(), "", "", 0, nullptr, "", true);
-                    }
-                    break;
-                case ElementType::URL:
-                    getApi().sendMessage(listener, rawElement->getUrl(), false, 0, nullptr, "", true);
-                    break;
-            }
-            wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
         }
         catch (std::exception &e)
         {
             std::cout << e.what() << std::endl;
-            try
-            {
-                if (!rawElement->getUrl().empty())
-                {
-                    getApi().sendMessage(listener,"Не могу отправить: " + rawElement->getUrl(),
-                                         false, 0, nullptr, "", true);
-                }
-            }
-            catch (std::exception &e)
-            {
-                std::cout << e.what() << std::endl;
-            }
         }
-    }
-    try
-    {
-        getApi().sendMessage(listener, u8"🔚🔚🔚🔚🔚🔚🔚🔚つ ◕_◕ ༽つ🔚🔚🔚🔚🔚🔚🔚🔚",
-                             true, 0, nullptr, "", true);
-        wait(std::chrono::seconds(TgLimits::messageDelay), timePoint);
-    }
-    catch (std::exception &e)
-    {
-        std::cout << e.what() << std::endl;
     }
 }
 
@@ -348,27 +253,11 @@ void ReactorKun::_mailerHandler()
         ReactorParser::update();
         boost::this_thread::interruption_point();
 
-        //it is necessary to destroy the posts
-        {
-            auto listeners = BotDB::getBotDB().getListeners();
-            auto posts = BotDB::getBotDB().getNotSentReactorPosts();
-            std::cout << "New posts: " << posts.size() << std::endl;
-            SpinGuard lockGuard(_lock);
-            for (auto &listener : listeners)
-            {
-                _locks.insert(std::pair(listener, std::shared_ptr<std::mutex>(new std::mutex())));
-            }
-            lockGuard.unlock();
-            for (auto &listener : listeners)
-            {
-                for (auto &post : posts)
-                {
-                    sendReactorPost(listener, post);
-                }
-            }
-            lockGuard.lock();
-            _locks.clear();
-        }
+        auto listeners = BotDB::getBotDB().getListeners();
+        auto posts = BotDB::getBotDB().getNotSentReactorPosts();
+        std::cout << "New messages: " << posts.size() << std::endl;
+
+        _threadPool.addPostsToSend(listeners, posts);
 
         BotDB::getBotDB().markReactorPostsAsSent();
         BotDB::getBotDB().deleteOldReactorPosts(1000);

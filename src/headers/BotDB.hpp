@@ -1,5 +1,7 @@
 #pragma once
-#include "ReactorPost.hpp"
+#include "BotMessage.hpp"
+#include <vector>
+#include <queue>
 
 class PreparedStatment;
 
@@ -17,8 +19,8 @@ public:
     bool newReactorUrl(int64_t id, std::string_view url, std::string_view tags);
     bool newReactorData(int64_t id, ElementType type, std::string_view text, const char* data);
     void markReactorPostsAsSent();
-    std::vector<ReactorPost> getNotSentReactorPosts();
-    ReactorPost getLatestReactorPost();
+    std::queue<std::shared_ptr<BotMessage>> getNotSentReactorPosts();
+    std::queue<std::shared_ptr<BotMessage>> getLatestReactorPost();
     bool empty();
 
     static BotDB& getBotDB();
@@ -26,5 +28,7 @@ public:
 private:
     std::string _path;
 
-    ReactorPost _createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData);
+    void _accumulateMessages(PreparedStatment &resultSetUrls,
+                       PreparedStatment &resultSetData,
+                       std::queue<std::shared_ptr<BotMessage>> &accumulator);
 };

@@ -1,19 +1,37 @@
-#include "ReactorPost.hpp"
+#include "BotMessage.hpp"
 #include "ReactorParser.hpp"
 #include "TgLimits.hpp"
 #include <tgbot/tools/StringTools.h>
 #include "FileManager.hpp"
 #include "AuxiliaryFunctions.hpp"
 
-bool RawElement::_downloadingEnable = true;
+bool DataMessage::_downloadingEnable = true;
 
-void RawElement::isDownloadingEnable(bool flag)
+void DataMessage::isDownloadingEnable(bool flag)
 {
     _downloadingEnable = flag;
 }
 
-RawElement::RawElement(ElementType type, std::string_view text, std::string_view url):
-    _type(type), _text(text), _url(url)
+ElementType BotMessage::getType() const
+{
+    return _type;
+}
+
+BotMessage::BotMessage(ElementType type): _type(type)
+{
+}
+
+TextMessage::TextMessage(std::string_view text): BotMessage(ElementType::TEXT), _text(text)
+{
+}
+
+const std::string& TextMessage::getText() const
+{
+    return _text;
+}
+
+DataMessage::DataMessage(ElementType type, std::string_view url):
+    BotMessage(type), _url(url)
 {
     if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
     {
@@ -85,7 +103,7 @@ RawElement::RawElement(ElementType type, std::string_view text, std::string_view
     }
 }
 
-RawElement::~RawElement()
+DataMessage::~DataMessage()
 {
     if (!_fileName.empty())
     {
@@ -93,71 +111,54 @@ RawElement::~RawElement()
     }
 }
 
-ElementType RawElement::getType() const
+ElementType DataMessage::getType() const
 {
     return _type;
 }
 
-const std::string& RawElement::getText() const
-{
-    return _text;
-}
-
-const std::string& RawElement::getUrl() const
+const std::string& DataMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string RawElement::getFilePath() const
+const std::string DataMessage::getFilePath() const
 {
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 
-const std::string& RawElement::getMimeType() const
+const std::string& DataMessage::getMimeType() const
 {
     return _mimeType;
 }
 
-ReactorPost::ReactorPost(std::string_view url, std::string_view tags): _url(url), _tags(tags)
+PostHeaderMessage::PostHeaderMessage(): BotMessage(ElementType::HEADER)
 {
 }
 
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags):
+    BotMessage(ElementType::HEADER), _url(url), _tags(tags)
+{
+}
 
-ReactorPost::ReactorPost(ReactorPost&& source) noexcept
+PostHeaderMessage::PostHeaderMessage(PostHeaderMessage&& source) noexcept
+    : BotMessage(ElementType::HEADER)
 {
     *this = std::move(source);
 }
 
-ReactorPost& ReactorPost::operator=(ReactorPost&& source) noexcept
+PostHeaderMessage& PostHeaderMessage::operator=(PostHeaderMessage&& source) noexcept
 {
     _url = std::move(source._url);
     _tags = std::move(source._tags);
-    _elements = std::move(source._elements);
     return *this;
 }
 
-void ReactorPost::setHeader(std::string_view url, std::string_view tags)
-{
-    _url = url;
-    _tags = tags;
-}
-
-void ReactorPost::emplaceElement(std::unique_ptr<RawElement> &&element)
-{
-    _elements.emplace_back(std::move(element));
-}
-
-const std::vector<std::unique_ptr<RawElement>>& ReactorPost::getElements() const
-{
-    return _elements;
-}
-
-const std::string& ReactorPost::getUrl() const
+const std::string& PostHeaderMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string& ReactorPost::getTags() const
+const std::string& PostHeaderMessage::getTags() const
 {
     return _tags;
 }

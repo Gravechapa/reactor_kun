@@ -18,10 +18,11 @@ public:
     static void setProxy(std::string_view address);
     static void init();
     static void update();
-    static ReactorPost getPostByURL(std::string_view link);
-    static ReactorPost getRandomPost();
+    static std::queue<std::shared_ptr<BotMessage>> getPostByURL(std::string_view link);
+    static std::queue<std::shared_ptr<BotMessage>> getRandomPost();
     static ContentInfo getContentInfo(std::string_view link);
     static bool getContent(std::string_view link, std::string_view filePath);
+    static void textSplitter(std::string &text, std::queue<std::shared_ptr<BotMessage>> &accumulator);
 
 private:
     static void _perform(CURL *curl);

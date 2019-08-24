@@ -3,6 +3,8 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
+#include <utf8_string.hpp>
+#include "TgLimits.hpp"
 
 static std::string DOMAIN = "http://old.reactor.cc";
 
@@ -18,16 +20,24 @@ CURL * const ReactorParser::_config{curl_easy_init()};
 
 bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
 {
-    static_cast<ReactorPost*>(userData)->setHeader(url, tags);
+    static_cast<std::queue<std::shared_ptr<BotMessage>>*>(userData)->
+            emplace(new PostHeaderMessage(url, tags));
     return true;
 }
 
 bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data, void* userData)
 {
-    static_cast<ReactorPost*>(userData)->emplaceElement(std::unique_ptr<RawElement>(
-                                                            new RawElement(static_cast<ElementType>(type),
-                                                                           text,
-                                                                           data ? data : "")));
+    auto accumulator = static_cast<std::queue<std::shared_ptr<BotMessage>>*>(userData);
+    std::string string(text);
+
+    if (!string.empty())
+    {
+        ReactorParser::textSplitter(string, *accumulator);
+    }
+    if (static_cast<ElementType>(type) != ElementType::TEXT)
+    {
+        accumulator->emplace(new DataMessage(static_cast<ElementType>(type), data));
+    }
     return true;
 }
 
@@ -83,9 +93,9 @@ void ReactorParser::init()
     get_page_content_cleanup(&nextPageUrl);
 }
 
-ReactorPost ReactorParser::getPostByURL(std::string_view link)
+std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_view link)
 {
-    ReactorPost post;
+    std::queue<std::shared_ptr<BotMessage>> post;
 
     auto curl = curl_easy_duphandle(_config);
 
@@ -101,11 +111,13 @@ ReactorPost ReactorParser::getPostByURL(std::string_view link)
         std::cout << "There were some issues when processing the page: " << link << std::endl;
     }
 
+    post.emplace(new PostFooterMessage());
+
     curl_easy_cleanup(curl);
     return post;
 }
 
-ReactorPost ReactorParser::getRandomPost()
+std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
 {
     auto curl = curl_easy_duphandle(_config);
     std::string link = DOMAIN + "/random";
@@ -116,7 +128,7 @@ ReactorPost ReactorParser::getRandomPost()
     _perform(curl);
     char *url = nullptr;
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);
-    ReactorPost post = getPostByURL(url);
+    std::queue<std::shared_ptr<BotMessage>> post = getPostByURL(url);
     curl_easy_cleanup(curl);
     return post;
 }
@@ -222,5 +234,38 @@ void ReactorParser::_perform(CURL *curl)
         std::cout << "Curl issue: " << curl_easy_strerror(result)
                   << " Retrying: " << counter << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+void ReactorParser::textSplitter(std::string &text,
+                                 std::queue<std::shared_ptr<BotMessage>> &accumulator)
+{
+    UTF8string utf8Text(text);
+    size_t pos = 0;
+    size_t skip = 0;
+    while (pos < utf8Text.utf8_length())
+    {
+        size_t count = TgLimits::maxMessageUtf8Char;
+        if (pos + count <= utf8Text.utf8_length())
+        {
+            bool check = false;
+            for (size_t i = count; i > skip; --i)
+            {
+                if (utf8Text.utf8_at(pos + i - 1) == " ")
+                {
+                    skip = count - i;
+                    count = i;
+                    check = true;
+                    break;
+                }
+            }
+            if (!check)
+            {
+                skip = 0;
+            }
+        }
+        auto splittedString = utf8Text.utf8_substr(pos, count);
+        accumulator.emplace(new TextMessage(splittedString.utf8_sstring()));
+        pos += count;
     }
 }

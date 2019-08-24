@@ -80,6 +80,8 @@ void FileManager::collectGarbage()
                     [[fallthrough]];
                 case FileState::NOTLOADED:
                     it->second->first = FileState::DELETED;
+                    counterLock.unlock();
+                    counterLock.release();
                     it = _index.erase(it);
                     continue;
             }

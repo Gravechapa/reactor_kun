@@ -323,63 +323,73 @@ void BotDB::markReactorPostsAsSent()
     stmt.execute();
 }
 
-std::vector<ReactorPost> BotDB::getNotSentReactorPosts()
+std::queue<std::shared_ptr<BotMessage>> BotDB::getNotSentReactorPosts()
 {
-    std::vector<ReactorPost> result;
+    std::queue<std::shared_ptr<BotMessage>> result;
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
     PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls WHERE SENT = 0;");
     PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
                                    "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
 
-      while(resultSetUrls.next())
-     {
-         result.push_back(_createReactorPost(resultSetUrls, resultSetData));
-     }
-     return result;
+
+    _accumulateMessages(resultSetUrls, resultSetData, result);
+
+    return result;
 }
 
-ReactorPost BotDB::getLatestReactorPost()
+std::queue<std::shared_ptr<BotMessage>> BotDB::getLatestReactorPost()
 {
-    ReactorPost result;
+    std::queue<std::shared_ptr<BotMessage>> result;
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
     PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls order by ROWID DESC limit 1;");
     PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
                                    "(SELECT ID FROM reactor_urls order by ROWID DESC limit 1) order by ID;");
 
-     if(resultSetUrls.next())
-     {
-         result = _createReactorPost(resultSetUrls, resultSetData);
-     }
-     return result;
+
+    _accumulateMessages(resultSetUrls, resultSetData, result);
+    return result;
 }
 
-ReactorPost BotDB::_createReactorPost(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData)
+void BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
+                               PreparedStatment &resultSetData,
+                               std::queue<std::shared_ptr<BotMessage>> &accumulator)
 {
-    int64_t id = resultSetUrls.getInt64(0);
-    ReactorPost post(resultSetUrls.getText(1), resultSetUrls.getText(2));
+    while(resultSetUrls.next())
+   {
+        int64_t id = resultSetUrls.getInt64(0);
+        accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1),
+                                                       resultSetUrls.getText(2)));
 
-    if (resultSetData.isBeforeFirst())
-    {
-        resultSetData.next();
-    }
-    if (!resultSetData.isAfterLast())
-    {
-        do
+        if (resultSetData.isBeforeFirst())
         {
-            if (id != resultSetData.getInt64(0))
-            {
-                return post;
-            }
-            post.emplaceElement(std::unique_ptr<RawElement>(new RawElement(
-                                               static_cast<ElementType>(resultSetData.getInt(1)),
-                                               resultSetData.getText(2),
-                                               resultSetData.getText(3))));
+            resultSetData.next();
         }
-        while (resultSetData.next());
+        if (!resultSetData.isAfterLast())
+        {
+            do
+            {
+                if (id != resultSetData.getInt64(0))
+                {
+                    break;
+                }
+                auto type = static_cast<ElementType>(resultSetData.getInt(1));
+                std::string text = resultSetData.getText(2);
+
+                if (!text.empty())
+                {
+                    ReactorParser::textSplitter(text, accumulator);
+                }
+                if (type != ElementType::TEXT)
+                {
+                    accumulator.emplace(new DataMessage(type, resultSetData.getText(3)));
+                }
+            }
+            while (resultSetData.next());
+        }
+        accumulator.emplace(new PostFooterMessage());
     }
-    return post;
 }
 
 bool BotDB::empty()
