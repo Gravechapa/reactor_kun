@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <memory>
 
 enum class ElementType: int32_t
 {
@@ -8,28 +9,75 @@ enum class ElementType: int32_t
     IMG,
     DOCUMENT,
     URL,
-    REACTORPOST,
+    HEADER,
+    FOOTER
 };
 
 class BotMessage
 {
 public:
-    ElementType getType() const {return _type;}
+    ElementType getType() const;
+
 protected:
-    BotMessage(ElementType type): _type(type){}
+    BotMessage(ElementType type);
     ElementType _type;
 };
 
 class TextMessage: public BotMessage
 {
 public:
-    TextMessage(std::string_view text_): BotMessage(ElementType::TEXT), text(text_){}
-    const std::string text;
+    TextMessage(std::string_view text);
+    const std::string& getText() const;
+
+private:
+    std::string _text;
 };
 
-class ImgMessage: public BotMessage
+class DataMessage: public BotMessage
 {
 public:
-    ImgMessage(std::string_view url_): BotMessage(ElementType::IMG), url(url_){}
-    const std::string url;
+    DataMessage(ElementType type, std::string_view url);
+    ~DataMessage();
+
+    ElementType getType() const;
+    const std::string& getUrl() const;
+    const std::string getFilePath() const;
+    const std::string& getMimeType() const;
+
+    static void isDownloadingEnable(bool flag);
+
+private:
+    static bool _downloadingEnable;
+
+    std::string _url;
+    std::string _fileName{""};
+    std::string _mimeType{""};
+
+    DataMessage(const DataMessage&) = delete;
+    const DataMessage& operator=(const DataMessage&) = delete;
+};
+
+class PostHeaderMessage: public BotMessage
+{
+public:
+    PostHeaderMessage();
+    PostHeaderMessage(std::string_view url, std::string_view tags);
+    PostHeaderMessage(PostHeaderMessage&& source) noexcept;
+    PostHeaderMessage& operator=(PostHeaderMessage&& source) noexcept;
+
+    const std::string& getUrl() const;
+    const std::string& getTags() const;
+
+private:
+    std::string _url{""};
+    std::string _tags{""};
+
+    PostHeaderMessage(const PostHeaderMessage&) = delete;
+    const PostHeaderMessage& operator=(const PostHeaderMessage&) = delete;
+};
+
+class PostFooterMessage: public BotMessage
+{
+public:
+    PostFooterMessage(): BotMessage(ElementType::FOOTER){}
 };

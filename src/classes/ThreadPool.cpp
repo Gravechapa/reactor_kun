@@ -2,6 +2,7 @@
 #include "AuxiliaryFunctions.hpp"
 #include "SpinGuard.hpp"
 #include "TgLimits.hpp"
+#include "ReactorKun.hpp"
 
 const short ThreadPool::_defauldThreadsNumber = 4;
 
@@ -9,7 +10,10 @@ ThreadPool::ThreadPool(ReactorKun &bot): _bot(bot)
 {
     auto poolSize = std::thread::hardware_concurrency()?
                 std::thread::hardware_concurrency():_defauldThreadsNumber;
-    _threads = std::vector<std::thread>(poolSize, std::thread(&ThreadPool::_sender, this));
+    for (int i = 0; i < poolSize; ++i)
+    {
+        _threads.emplace_back(std::thread(&ThreadPool::_sender, this));
+    }
     _schedulerThread = std::thread(&ThreadPool::_scheduler, this);
 }
 
@@ -101,7 +105,7 @@ void ThreadPool::_scheduler()
             while (!tasksBuffer.empty())
             {
                 _threadsTasks.push(std::move(tasksBuffer.front()));
-                _threadsTasks.pop();
+                tasksBuffer.pop();
             }
         }
 
@@ -109,34 +113,42 @@ void ThreadPool::_scheduler()
     }
 }
 
-void ThreadPool::addPostToSend(std::vector<int64_t> &listeners, ReactorPost &&post)
+void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners,
+                    std::queue<std::shared_ptr<BotMessage>> &posts)
 {
-    ReactorPost *postPtr = new ReactorPost;
-    *postPtr = std::move(post);
-    std::shared_ptr<BotMessage> sharedPost(postPtr);
+    addPostsToSend(listeners, posts);
+}
+
+void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners,
+                                std::queue<std::shared_ptr<BotMessage>> &posts)
+{
     SpinGuard scheduleGuard(_scheduleLock);
-    for (auto listener : listeners)
+    while (!posts.empty())
     {
-        _scheduleMap[listener].lowPriority.push(sharedPost);
+        for (auto listener : listeners)
+        {
+            _scheduleMap[listener].lowPriority.push(posts.front());
+        }
+        posts.pop();
     }
 }
 
-void ThreadPool::addTextToSend(std::vector<int64_t> &listeners, std::string_view text)
+void ThreadPool::addTextToSend(std::vector<int64_t> &&listeners, std::string_view text)
 {
     std::shared_ptr<BotMessage> sharedMsg(new TextMessage(text));
     SpinGuard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {
-        _scheduleMap[listener].lowPriority.push(sharedMsg);
+        _scheduleMap[listener].highPriority.push(sharedMsg);
     }
 }
 
-void ThreadPool::addImgToSend(std::vector<int64_t> &listeners, std::string_view url)
+void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view url)
 {
-    std::shared_ptr<BotMessage> sharedMsg(new ImgMessage(url));
+    std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::IMG, url));
     SpinGuard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {
-        _scheduleMap[listener].lowPriority.push(sharedMsg);
+        _scheduleMap[listener].highPriority.push(sharedMsg);
     }
 }

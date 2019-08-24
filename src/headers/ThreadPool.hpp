@@ -1,16 +1,21 @@
 #pragma once
-#include "ReactorKun.hpp"
-#include <queue>
+#include <mutex>
+#include <tgbot/tgbot.h>
+#include "BotDB.hpp"
 
+class ReactorKun;
 class ThreadPool
 {
 public:
     ThreadPool(ReactorKun &bot);
     ~ThreadPool();
 
-    void addPostToSend(std::vector<int64_t> &listeners, ReactorPost &&post);
-    void addTextToSend(std::vector<int64_t> &listeners, std::string_view text);
-    void addImgToSend(std::vector<int64_t> &listeners, std::string_view url);
+    void addPostsToSend(std::vector<int64_t> &&listeners,
+                        std::queue<std::shared_ptr<BotMessage>> &posts);
+    void addPostsToSend(std::vector<int64_t> &listeners,
+                        std::queue<std::shared_ptr<BotMessage>> &posts);
+    void addTextToSend(std::vector<int64_t> &&listeners, std::string_view text);
+    void addImgToSend(std::vector<int64_t> &&listeners, std::string_view url);
 
 private:
     struct SendingQueue
@@ -49,7 +54,7 @@ private:
 
     void _sender();
     void _scheduler();
-    std::vector<std::thread> _threads{};
+    std::vector<std::thread> _threads;
     std::thread _schedulerThread;
     std::atomic<bool> _threadsStop{false};
     uint32_t _threadsDelay = 16;
