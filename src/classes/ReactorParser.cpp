@@ -14,7 +14,7 @@ int ReactorParser::_overload = 2000;
 std::mutex ReactorParser::_lock;
 std::chrono::high_resolution_clock::time_point ReactorParser::_timePoint =
         std::chrono::high_resolution_clock::now();
-std::chrono::milliseconds ReactorParser::_delay = std::chrono::milliseconds(250);
+const std::chrono::milliseconds ReactorParser::_delay = std::chrono::milliseconds(10);
 
 CURL * const ReactorParser::_config{curl_easy_init()};
 

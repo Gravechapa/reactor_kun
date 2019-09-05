@@ -57,8 +57,8 @@ private:
     std::vector<std::thread> _threads;
     std::thread _schedulerThread;
     std::atomic<bool> _threadsStop{false};
-    uint32_t _threadsDelay = 16;
-    uint32_t _schedulerDelay = 200;
+    const std::chrono::milliseconds _threadsDelay{16};
+    const std::chrono::milliseconds _schedulerDelay{200};
 
     std::map<int64_t, SendingQueue> _scheduleMap;
     std::atomic_flag _scheduleLock = ATOMIC_FLAG_INIT;

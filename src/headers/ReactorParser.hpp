@@ -34,5 +34,5 @@ private:
 
     static std::mutex _lock;
     static std::chrono::high_resolution_clock::time_point _timePoint;
-    static std::chrono::milliseconds _delay;
+    static const std::chrono::milliseconds _delay;
 };

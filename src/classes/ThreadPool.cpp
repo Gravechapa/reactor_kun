@@ -55,7 +55,7 @@ void ThreadPool::_sender()
             tasksGuard.unlock();
         }
 
-        wait(std::chrono::milliseconds(_threadsDelay), timePoint);
+        wait(_threadsDelay, timePoint);
     }
 }
 
@@ -108,7 +108,7 @@ void ThreadPool::_scheduler()
             }
         }
 
-        wait(std::chrono::milliseconds(_schedulerDelay), timePoint);
+        wait(_schedulerDelay, timePoint);
     }
 }
 

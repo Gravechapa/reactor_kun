@@ -20,7 +20,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     {
         ReactorParser::init();
     }
-    //DataMessage::isDownloadingEnable(false);
+    DataMessage::isDownloadingEnable(false);
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -88,11 +88,8 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
     if (text == getRandomCMD)
     {
-        auto post = ReactorParser::getRandomPost();
-        if (!post.empty())
-        {
-            _threadPool.addPostsToSend({chatID}, post);
-        }
+        SpinGuard tasksGuard(_mailerTasksLock);
+        _mailerTasks.push(std::pair(chatID, ""));
         return;
     }
 
@@ -103,15 +100,8 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         static const auto numberRegex = std::regex(R"(^\d+$)");
         if (std::regex_match(postNumber, numberRegex))
         {
-            auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
-            if (!post.empty())
-            {
-                _threadPool.addPostsToSend({chatID}, post);
-            }
-            else
-            {
-                _threadPool.addTextToSend({chatID}, "Пост не найден.");
-            }
+            SpinGuard tasksGuard(_mailerTasksLock);
+            _mailerTasks.push(std::pair(chatID, "http://old.reactor.cc/post/" + postNumber));
         }
         else
         {
@@ -143,20 +133,13 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
             std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+/?$)");
     if (std::regex_match(text, reactorUrlRegex))
     {
-        if (text.back() == '/')
+        /*if (text.back() == '/')
         {
             text.pop_back();
         }
-        auto postNumber = text.substr(text.rfind("/") + 1);
-        auto post = ReactorParser::getPostByURL("http://old.reactor.cc/post/" + postNumber);
-        if (!post.empty())
-        {
-            _threadPool.addPostsToSend({chatID}, post);
-        }
-        else
-        {
-            _threadPool.addTextToSend({chatID}, "Пост не найден.");
-        }
+        auto postNumber = text.substr(text.rfind("/") + 1);*/
+        SpinGuard tasksGuard(_mailerTasksLock);
+        _mailerTasks.push(std::pair(chatID, text));
     }
     else
     {
@@ -245,25 +228,59 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
 
 void ReactorKun::_mailerHandler()
 {
-    auto timePoint = std::chrono::high_resolution_clock::now();
+    auto pollPoint = std::chrono::high_resolution_clock::now();
+    auto updatePoint = pollPoint - _mailerUpdateDelay;
     boost::this_thread::interruption_enabled();
+    std::queue<std::pair<int64_t, std::string_view>> tasks;
     while (true)
     {
+        //unlock spin
+        {
+            SpinGuard tasksGuard(_mailerTasksLock);
+            tasks.swap(_mailerTasks);
+        }
+        while (!tasks.empty())
+        {
+            std::queue<std::shared_ptr<BotMessage>> post;
+            if (tasks.front().second.empty())
+            {
+                post = ReactorParser::getRandomPost();
+            }
+            else
+            {
+                post = ReactorParser::getPostByURL(tasks.front().second);
+            }
+
+            if (!post.empty())
+            {
+                _threadPool.addPostsToSend({tasks.front().first}, post);
+            }
+            else
+            {
+                _threadPool.addTextToSend({tasks.front().first}, "Пост не найден.");
+            }
+            tasks.pop();
+        }
+
         boost::this_thread::interruption_point();
-        ReactorParser::update();
-        boost::this_thread::interruption_point();
+        if (std::chrono::high_resolution_clock::now() - updatePoint > _mailerUpdateDelay)
+        {
+            updatePoint = std::chrono::high_resolution_clock::now();
+            ReactorParser::update();
+            boost::this_thread::interruption_point();
 
-        auto listeners = BotDB::getBotDB().getListeners();
-        auto posts = BotDB::getBotDB().getNotSentReactorPosts();
-        std::cout << "New messages: " << posts.size() << std::endl;
+            auto listeners = BotDB::getBotDB().getListeners();
+            auto posts = BotDB::getBotDB().getNotSentReactorPosts();
+            std::cout << "New messages: " << posts.size() << std::endl;
 
-        _threadPool.addPostsToSend(listeners, posts);
+            _threadPool.addPostsToSend(listeners, posts);
 
-        BotDB::getBotDB().markReactorPostsAsSent();
-        BotDB::getBotDB().deleteOldReactorPosts(1000);
+            BotDB::getBotDB().markReactorPostsAsSent();
+            BotDB::getBotDB().deleteOldReactorPosts(1000);
 
-        FileManager::getInstance().collectGarbage();
-        wait(std::chrono::minutes(5), timePoint);
+            FileManager::getInstance().collectGarbage();
+        }
+        wait(_mailerPollDelay, pollPoint);
     }
 }
 
