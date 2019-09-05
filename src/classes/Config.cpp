@@ -1,4 +1,5 @@
 #include "Config.hpp"
+#include "iostream"
 
 Config::Config(std::string configFile)
 {
@@ -32,6 +33,56 @@ Config::Config(std::string configFile)
      }
     _superUserName = it.value().get<std::string>();
 
+    it = json.find("domain");
+    if (it == json.end())
+     {
+         throw std::runtime_error("Config file don't have \"domain\" field");
+     }
+    if (!it.value().is_string())
+     {
+         throw std::runtime_error("Bad config: field \"domain\" is not a string");
+     }
+    auto domain = it.value().get<std::string>();
+
+    it = json.find("tag");
+    if (it == json.end())
+     {
+         throw std::runtime_error("Config file don't have \"tag\" field");
+     }
+    if (!it.value().is_string())
+     {
+         throw std::runtime_error("Bad config: field \"tag\" is not a string");
+     }
+    auto tag = it.value().get<std::string>();
+
+    it = json.find("popularity");
+    if (it == json.end())
+     {
+         throw std::runtime_error("Config file don't have \"popularity\" field");
+     }
+    if (!it.value().is_string())
+     {
+         throw std::runtime_error("Bad config: field \"popularity\" is not a string");
+     }
+    auto popularity = it.value().get<std::string>();
+
+    auto errmsg = generateReactorUrl(domain, tag, popularity);
+    if (!errmsg.empty())
+    {
+        std::cerr << errmsg << "result url: " << _reactorDomain << _reactorUrlPath;
+    }
+
+    it = json.find("enableFilesDownloading");
+    if (it == json.end())
+     {
+         throw std::runtime_error("Config file don't have \"enableFilesDownloading\" field");
+     }
+    if (!it.value().is_boolean())
+     {
+         throw std::runtime_error("Bad config: field \"enableFilesDownloading\" is not a boolean");
+     }
+    _filesDownloadingEnable = it.value().get<bool>();
+
     it = json.find("proxy");
     if (it != json.end())
     {
@@ -41,7 +92,29 @@ Config::Config(std::string configFile)
         }
         nlohmann::json proxyJson = it.value().get<nlohmann::json>();
 
-        auto proxyIt = proxyJson.find("type");
+        auto proxyIt = proxyJson.find("enableForReactor");
+        if (proxyIt == proxyJson.end())
+         {
+             throw std::runtime_error("Config file don't have \"proxy::enableForReactor\" field");
+         }
+        if (!proxyIt.value().is_boolean())
+         {
+             throw std::runtime_error("Bad config: field \"proxy::enableForReactor\" is not a boolean");
+         }
+        _enableProxyForReactor = proxyIt.value().get<bool>();
+
+        proxyIt = proxyJson.find("enableForTelegram");
+        if (proxyIt == proxyJson.end())
+         {
+             throw std::runtime_error("Config file don't have \"proxy::enableForTelegram\" field");
+         }
+        if (!proxyIt.value().is_boolean())
+         {
+             throw std::runtime_error("Bad config: field \"proxy::enableForTelegram\" is not a boolean");
+         }
+        _enableProxyForTelegram = proxyIt.value().get<bool>();
+
+        proxyIt = proxyJson.find("type");
         if (proxyIt == proxyJson.end())
          {
              throw std::runtime_error("Config file don't have \"proxy::type\" field");
@@ -93,6 +166,68 @@ Config::Config(std::string configFile)
     }
 }
 
+std::string Config::generateReactorUrl(std::string_view domain,
+                        std::string_view tag,
+                        std::string_view popularity)
+{
+    std::string errorMsg;
+    std::string result;
+    _reactorDomain = "http://";
+    if (domain == "old")
+    {
+        _reactorDomain += "old.reactor.cc/";
+    }
+    else if (domain == "new")
+    {
+        _reactorDomain += "joyreactor.cc/";
+    }
+    else
+    {
+        errorMsg += "domain has unknown value falling back to default(old)/";
+        _reactorDomain += "old.reactor.cc/";
+    }
+
+    if (!tag.empty())
+    {
+        //todo: add regex
+        result += "tag/" + std::string(tag) + "/";
+    }
+
+    if (popularity == "all")
+    {
+        if (tag.empty())
+        {
+            result += "new";
+        }
+        else
+        {
+            result += "all";
+        }
+    }
+    else if (popularity == "new")
+    {
+        if (tag.empty())
+        {
+            result += "all";
+        }
+        else
+        {
+            result += "new";
+        }
+    }
+    else if (popularity == "best")
+    {
+        result += "best";
+    }
+    else if (popularity != "good")
+    {
+        errorMsg += "popularity has unknown value falling back to default(best)/";
+        result += "best";
+    }
+    _reactorUrlPath.swap(result);
+    return errorMsg;
+}
+
 const std::string& Config::getToken() const
 {
     return _token;
@@ -101,6 +236,31 @@ const std::string& Config::getToken() const
 const std::string& Config::getSU() const
 {
     return _superUserName;
+}
+
+const std::string& Config::getReactorDomain() const
+{
+    return _reactorDomain;
+}
+
+const std::string& Config::getReactorUrlPath() const
+{
+    return _reactorUrlPath;
+}
+
+bool Config::isFilesDownloadingEnabled() const
+{
+    return _filesDownloadingEnable;
+}
+
+bool Config::isProxyEnabledForReactor() const
+{
+    return _enableProxyForReactor;
+}
+
+bool Config::isProxyEnabledForTelegram() const
+{
+    return _enableProxyForTelegram;
 }
 
 const std::string& Config::getProxy() const

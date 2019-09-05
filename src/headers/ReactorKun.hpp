@@ -23,7 +23,7 @@ private:
 
     ThreadPool _threadPool{*this};
     std::atomic_flag _mailerTasksLock = ATOMIC_FLAG_INIT;
-    std::queue<std::pair<int64_t, std::string_view>> _mailerTasks;
+    std::queue<std::pair<int64_t, std::string>> _mailerTasks;
     boost::thread _mailer;
     std:: string _botName;
     Config _config;

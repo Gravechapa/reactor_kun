@@ -14,7 +14,7 @@ struct ContentInfo
 class ReactorParser
 {
 public:
-    static void setup();
+    static void setup(std::string_view domain, std::string_view urlPath);
     static void setProxy(std::string_view address);
     static void init();
     static void update();
@@ -29,7 +29,8 @@ private:
 
     static CURL * const _config;
 
-    static std::string _tag;
+    static std::string _domain;
+    static std::string _urlPath;
     static int32_t _overload;
 
     static std::mutex _lock;

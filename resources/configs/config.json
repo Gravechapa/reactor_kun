@@ -1,11 +1,25 @@
 {
-"token": "567849458:AAEKzW0s2coYr3chl7koEoil1NSHepgNyMs",
-"superUserName": "Gravechapa",
-"proxy": {
-    "type": "socks5",
-    "address": "127.0.0.1",
-    "port": 9050,
-    "user": null,
-    "password": null
-}
+    "token": "567849458:AAEKzW0s2coYr3chl7koEoil1NSHepgNyMs",
+    "superUserName": "Gravechapa",
+
+    "domain": "old or new",
+    "domain": "old",
+
+    "popularity": "May be: all, new, good or best",
+    "popularity": "all",
+
+    "tag": "tag or empty string",
+    "tag": "котэ",
+
+    "enableFilesDownloading": false,
+
+    "proxy": {
+        "enableForReactor": true,
+        "enableForTelegram": true,
+        "type": "socks5",
+        "address": "127.0.0.1",
+        "port": 9050,
+        "user": null,
+        "password": null
+    }
 }

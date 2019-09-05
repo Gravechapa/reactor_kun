@@ -9,18 +9,24 @@
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
 {
-    curl_easy_setopt(curlClient.curlSettings, CURLOPT_PROXY, _config.getProxy().c_str());
+    if (_config.isProxyEnabledForTelegram())
+    {
+        curl_easy_setopt(curlClient.curlSettings, CURLOPT_PROXY, _config.getProxy().c_str());
+    }
 
     getEvents().onAnyMessage(std::bind(&ReactorKun::_onUpdate, this, std::placeholders::_1));
     _botName = getApi().getMe()->username;
     getApi().deleteWebhook();
-    ReactorParser::setup();
-    ReactorParser::setProxy(_config.getProxy());
+    ReactorParser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
+    if (_config.isProxyEnabledForReactor())
+    {
+        ReactorParser::setProxy(_config.getProxy());
+    }
     if (BotDB::getBotDB().empty())
     {
         ReactorParser::init();
     }
-    DataMessage::isDownloadingEnable(false);
+    DataMessage::isDownloadingEnable(_config.isFilesDownloadingEnabled());
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -231,7 +237,7 @@ void ReactorKun::_mailerHandler()
     auto pollPoint = std::chrono::high_resolution_clock::now();
     auto updatePoint = pollPoint - _mailerUpdateDelay;
     boost::this_thread::interruption_enabled();
-    std::queue<std::pair<int64_t, std::string_view>> tasks;
+    std::queue<std::pair<int64_t, std::string>> tasks;
     while (true)
     {
         //unlock spin

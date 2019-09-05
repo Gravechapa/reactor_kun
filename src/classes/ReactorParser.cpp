@@ -6,9 +6,8 @@
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
 
-static std::string DOMAIN = "http://old.reactor.cc";
-
-std::string ReactorParser::_tag = "/new";
+std::string ReactorParser::_domain;
+std::string ReactorParser::_urlPath;
 int ReactorParser::_overload = 2000;
 
 std::mutex ReactorParser::_lock;
@@ -63,8 +62,10 @@ size_t WriteFileCallback(char *contents, size_t size, size_t nmemb, void *userp)
     return size * nmemb;
 }
 
-void ReactorParser::setup()
+void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
 {
+    _domain = domain;
+    _urlPath = urlPath;
     curl_easy_setopt(_config, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 0L);
 }
@@ -77,7 +78,7 @@ void ReactorParser::setProxy(std::string_view address)
 void ReactorParser::init()
 {
     auto curl = curl_easy_duphandle(_config);
-    auto start_page = DOMAIN + _tag;
+    auto start_page = _domain + _urlPath;
     curl_easy_setopt(curl, CURLOPT_URL, start_page.c_str());
     curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
 
@@ -120,7 +121,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_
 std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
 {
     auto curl = curl_easy_duphandle(_config);
-    std::string link = DOMAIN + "/random";
+    std::string link = _domain + "/random";
     curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
@@ -135,7 +136,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
 
 void ReactorParser::update()
 {
-    std::string nextUrl = DOMAIN + _tag;
+    std::string nextUrl = _domain + _urlPath;
 
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
@@ -177,7 +178,7 @@ ContentInfo ReactorParser::getContentInfo(std::string_view link)
 {
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
-    curl_easy_setopt(curl, CURLOPT_REFERER, DOMAIN.c_str());
+    curl_easy_setopt(curl, CURLOPT_REFERER, _domain.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
     _perform(curl);
@@ -203,7 +204,7 @@ bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
     }
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
-    curl_easy_setopt(curl, CURLOPT_REFERER, DOMAIN.c_str());
+    curl_easy_setopt(curl, CURLOPT_REFERER, _domain.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFileCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
     _perform(curl);
