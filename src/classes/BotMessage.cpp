@@ -50,9 +50,9 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
 
         auto pos = _url.rfind("/");
         _fileName = _url.substr(pos + 1);
-        auto _encodedString = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+        _url = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
 
-        ContentInfo info = ReactorParser::getContentInfo(_encodedString);
+        ContentInfo info = ReactorParser::getContentInfo(_url);
 
         if (info.size == 0 || info.type.empty())
         {
@@ -83,7 +83,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
         {
             auto &fileManager = FileManager::getInstance();
             FileStatus status;
-            while((status = fileManager.getFile(_encodedString, _fileName)) == FileStatus::NOTREADY);
+            while((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY);
             if (status == FileStatus::READY)
             {
                 _mimeType = info.type;

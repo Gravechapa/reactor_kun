@@ -1,5 +1,6 @@
 #include "Config.hpp"
 #include "iostream"
+#include <tgbot/tools/StringTools.h>
 
 Config::Config(std::string configFile)
 {
@@ -189,8 +190,15 @@ std::string Config::generateReactorUrl(std::string_view domain,
 
     if (!tag.empty())
     {
-        //todo: add regex
-        result += "tag/" + std::string(tag) + "/";
+        if (tag.find('/') == std::string_view::npos)
+        {
+            result += "tag/" + StringTools::urlEncode(std::string(tag)) + "/";
+        }
+        else
+        {
+            errorMsg += "tag has unknown value falling back to default(empty)/";
+            tag = "";
+        }
     }
 
     if (popularity == "all")
