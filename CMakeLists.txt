@@ -25,9 +25,14 @@ message("Configure ReactorParser")
 include("${EXTERNAL_PROJECTS_DIR}/ReactorParser.cmake")
 #####################################################################
 
-############################UTF8String############################
+############################UTF8String###############################
 message("Configure UTF8String")
 include("${EXTERNAL_PROJECTS_DIR}/UTF8String.cmake")
+#####################################################################
+
+############################Plog#####################################
+message("Configure Plog")
+include("${EXTERNAL_PROJECTS_DIR}/Plog.cmake")
 #####################################################################
 
 message(STATUS "Starting collecting files")
@@ -45,7 +50,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 if(UNIX)
-    find_package(Backtrace REQUIRED)
     find_package(Boost REQUIRED COMPONENTS thread stacktrace_addr2line)
 endif(UNIX)
 if(MSVC)

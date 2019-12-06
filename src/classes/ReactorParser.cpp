@@ -5,6 +5,7 @@
 #include <fstream>
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
+#include <plog/Log.h>
 
 std::string ReactorParser::_domain;
 std::string ReactorParser::_urlPath;
@@ -111,7 +112,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_
     if (!get_page_content(link.data(), html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
                           nullptr, &post, false))
     {
-        std::cout << "There were some issues when processing the page: " << link << std::endl;
+        PLOGW << "There were some issues when processing the page: " << link;
     }
 
     if (!post.empty())
@@ -159,10 +160,10 @@ void ReactorParser::update()
         if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
                               &nextPageUrl, nullptr, false))
         {
-            std::cout << "There were some issues when processing the page: " << nextUrl << std::endl;
+            PLOGW << "There were some issues when processing the page: " << nextUrl;
             if (!nextPageUrl.url)
             {
-                std::cout << html << std::endl;
+                PLOGD << html;
                 goto exit;
             }
         }
@@ -204,7 +205,7 @@ bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
     std::ofstream file(std::string(filePath), std::ofstream::binary);
     if (!file.is_open())
     {
-        std::cout << "Can't open file: " << filePath << std::endl;
+        PLOGE << "Can't open file: " << filePath;
         return false;
     }
     auto curl = curl_easy_duphandle(_config);
@@ -216,7 +217,7 @@ bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
     curl_easy_cleanup(curl);
     if (file.fail())
     {
-        std::cout << "An error occurred during file \"" << filePath << "\" writing" << std::endl;
+        PLOGE << "An error occurred during file \"" << filePath << "\" writing";
         return false;
     }
     return true;
@@ -237,8 +238,8 @@ void ReactorParser::_perform(CURL *curl)
             curl_easy_cleanup(curl);
             throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
         }
-        std::cout << "Curl issue: " << curl_easy_strerror(result)
-                  << " Retrying: " << counter << std::endl;
+        PLOGW << "Curl issue: " << curl_easy_strerror(result)
+                  << " Retrying: " << counter;
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }

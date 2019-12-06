@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <sqlite3.h>
+#include <plog/Log.h>
 
 class Connection
 {
@@ -21,7 +22,7 @@ public:
     {
         if (sqlite3_close_v2(_connection) != SQLITE_OK)
         {
-            std::cerr << "PreparedStatment wasn't properly destroyed" << std::endl;
+            PLOGE << "PreparedStatment wasn't properly destroyed";
         }
     }
 
@@ -53,7 +54,7 @@ public:
             {
                 throw std::runtime_error("Can't create PreparedStatment");
             }
-            std::cout << "Can't create PreparedStatment, retrying: " << counter << std::endl;
+            PLOGW << "Can't create PreparedStatment, retrying: " << counter;
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
         _connection = db._connection;
@@ -63,7 +64,7 @@ public:
     {
         if (sqlite3_finalize(_statment) != SQLITE_OK)
         {
-            std::cerr << "PreparedStatment wasn't properly destroyed" << std::endl;
+            PLOGE << "PreparedStatment wasn't properly destroyed";
         }
     }
 
@@ -333,7 +334,7 @@ std::queue<std::shared_ptr<BotMessage>> BotDB::getNotSentReactorPosts()
                                    "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
 
 
-    _accumulateMessages(resultSetUrls, resultSetData, result);
+    PLOGI << "New posts: " << _accumulateMessages(resultSetUrls, resultSetData, result);
 
     return result;
 }
@@ -352,12 +353,14 @@ std::queue<std::shared_ptr<BotMessage>> BotDB::getLatestReactorPost()
     return result;
 }
 
-void BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
+size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
                                PreparedStatment &resultSetData,
                                std::queue<std::shared_ptr<BotMessage>> &accumulator)
 {
+    size_t count{0};
     while(resultSetUrls.next())
    {
+        ++count;
         int64_t id = resultSetUrls.getInt64(0);
         accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1),
                                                        resultSetUrls.getText(2)));
@@ -390,6 +393,7 @@ void BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
         }
         accumulator.emplace(new PostFooterMessage());
     }
+    return count;
 }
 
 bool BotDB::empty()

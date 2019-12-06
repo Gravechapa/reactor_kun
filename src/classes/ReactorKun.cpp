@@ -5,6 +5,7 @@
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
 #include "SpinGuard.hpp"
+#include <plog/Log.h>
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -216,7 +217,7 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     }
     catch (std::exception &e)
     {
-        std::cout << e.what() << std::endl;
+        PLOGW << e.what();
         try
         {
             if (message->getType() == ElementType::IMG || message->getType() ==ElementType::DOCUMENT)
@@ -228,7 +229,7 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         }
         catch (std::exception &e)
         {
-            std::cout << e.what() << std::endl;
+            PLOGE << e.what();
         }
     }
 }
@@ -278,7 +279,7 @@ void ReactorKun::_mailerHandler()
 
             auto listeners = BotDB::getBotDB().getListeners();
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
-            std::cout << "New messages: " << posts.size() << std::endl;
+            PLOGD << "New messages: " << posts.size();
 
             _threadPool.addPostsToSend(listeners, posts);
 

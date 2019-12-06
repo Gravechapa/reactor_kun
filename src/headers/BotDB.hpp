@@ -28,7 +28,7 @@ public:
 private:
     std::string _path;
 
-    void _accumulateMessages(PreparedStatment &resultSetUrls,
-                       PreparedStatment &resultSetData,
-                       std::queue<std::shared_ptr<BotMessage>> &accumulator);
+    size_t _accumulateMessages(PreparedStatment &resultSetUrls,
+                               PreparedStatment &resultSetData,
+                               std::queue<std::shared_ptr<BotMessage>> &accumulator);
 };
