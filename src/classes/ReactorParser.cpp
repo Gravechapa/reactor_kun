@@ -68,6 +68,7 @@ void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
     _urlPath = urlPath;
     curl_easy_setopt(_config, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(_config, CURLOPT_TIMEOUT, 300L);
 }
 
 void ReactorParser::setProxy(std::string_view address)
@@ -103,6 +104,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_
     std::string html;
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     _perform(curl);
 
@@ -112,7 +114,10 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_
         std::cout << "There were some issues when processing the page: " << link << std::endl;
     }
 
-    post.emplace(new PostFooterMessage());
+    if (!post.empty())
+    {
+        post.emplace(new PostFooterMessage());
+    }
 
     curl_easy_cleanup(curl);
     return post;
@@ -125,7 +130,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
     curl_easy_setopt(curl, CURLOPT_URL, link.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-    curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     _perform(curl);
     char *url = nullptr;
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &url);

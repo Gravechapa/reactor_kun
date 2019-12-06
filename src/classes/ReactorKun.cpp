@@ -13,6 +13,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     {
         curl_easy_setopt(curlClient.curlSettings, CURLOPT_PROXY, _config.getProxy().c_str());
     }
+    curl_easy_setopt(curlClient.curlSettings, CURLOPT_TIMEOUT, 300L);
 
     getEvents().onAnyMessage(std::bind(&ReactorKun::_onUpdate, this, std::placeholders::_1));
     _botName = getApi().getMe()->username;
@@ -118,7 +119,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
     if (text == killCMD && message->chat->username == _config.getSU())
     {
-        exit(0);
+        raise(SIGINT);
     }
 
     if (text == secretCMD)
@@ -208,8 +209,8 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                 break;
             }
             case ElementType::FOOTER:
-                getApi().sendMessage(listener, u8"🔚🔚🔚🔚🔚🔚🔚🔚つ ◕_◕ ༽つ🔚🔚🔚🔚🔚🔚🔚🔚",
-                                     true, 0, nullptr, "", true);
+                getApi().sendMessage(listener, u8"☣️*Конец*☣️",
+                                     true, 0, nullptr, "Markdown", true);
                 break;
         }
     }

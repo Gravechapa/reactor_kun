@@ -8,6 +8,8 @@
 #include <boost/stacktrace.hpp>
 #include <csignal>
 
+static std::atomic_bool run{true};
+
 void failStackTrace(int signum)
 {
     std::signal(signum, SIG_DFL);
@@ -15,22 +17,16 @@ void failStackTrace(int signum)
     std::raise(SIGABRT);
 }
 
-[[noreturn]]void cleanup()
-{
-    curl_global_cleanup();
-    exit(0);
-}
-
 int main()
 {
     std::signal(SIGINT, [](int)
         {
             printf("SIGINT got\n");
-            cleanup();
+            run.store(false);
         });
 
-   std::signal(SIGSEGV, &failStackTrace);
-   std::signal(SIGABRT, &failStackTrace);
+    std::signal(SIGSEGV, &failStackTrace);
+    std::signal(SIGABRT, &failStackTrace);
 
     curl_global_init(CURL_GLOBAL_ALL);
     try
@@ -38,9 +34,9 @@ int main()
         TgBot::CurlHttpClient curlClient;
         ReactorKun reactorKun(Config ("configs/config.json"), curlClient);
         TgBot::TgLongPoll longPoll(reactorKun);
-        while (true)
+        while (run.load())
         {
-            std:: cout << "Long poll started" << std::endl;
+            std::cout << "Long poll started" << std::endl;
             try
             {
                 longPoll.start();
@@ -57,5 +53,5 @@ int main()
         std:: cout << e.what() << std::endl;
     }
 
-    cleanup();
+    curl_global_cleanup();
 }

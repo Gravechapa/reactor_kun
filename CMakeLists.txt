@@ -44,10 +44,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Backtrace)
-find_package(Boost COMPONENTS thread REQUIRED
-            OPTIONAL_COMPONENTS stacktrace_windbg stacktrace_windbg_cached
-            stacktrace_addr2line stacktrace_backtrace stacktrace_basic)
+if(UNIX)
+    find_package(Backtrace REQUIRED)
+    find_package(Boost REQUIRED COMPONENTS thread stacktrace_addr2line)
+endif(UNIX)
+if(MSVC)
+    find_package(Boost REQUIRED COMPONENTS thread stacktrace_windbg)
+endif(MSVC)
 add_definitions(-DHAVE_CURL)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules" ${CMAKE_MODULE_PATH})
