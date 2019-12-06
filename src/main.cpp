@@ -8,6 +8,7 @@
 #include <csignal>
 #include <plog/Log.h>
 #include <plog/Appenders/ColorConsoleAppender.h>
+#include <filesystem>
 
 static std::atomic_bool run{true};
 
@@ -21,7 +22,8 @@ void failStackTrace(int signum)
 int main()
 {
     auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    auto logName = std::string(std::ctime(&time)) + ".txt";
+    auto logName = "logs/" + std::string(std::ctime(&time)) + ".txt";
+    std::filesystem::create_directory("logs");
     plog::init(plog::verbose, logName.c_str(), 5 * 1024 * 1024, 2);
     plog::ColorConsoleAppender<plog::TxtFormatter> colorConsole;
     plog::init<1>(plog::info, &colorConsole);

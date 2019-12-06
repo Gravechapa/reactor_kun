@@ -41,6 +41,11 @@ bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data
     return true;
 }
 
+void reactorLog(const char* text)
+{
+    PLOGW << text;
+}
+
 bool newReactorUrl(int64_t id, const char* url, const char* tags, void*)
 {
     return BotDB::getBotDB().newReactorUrl(id, url, tags);
@@ -70,6 +75,7 @@ void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
     curl_easy_setopt(_config, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(_config, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(_config, CURLOPT_TIMEOUT, 300L);
+    set_log_callback(&reactorLog);
 }
 
 void ReactorParser::setProxy(std::string_view address)
