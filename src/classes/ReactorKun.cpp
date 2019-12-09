@@ -64,6 +64,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         }
     }
 
+    PLOGD << "Incoming msg: " << chatID << ", " << message->chat->username << ", " << message->text;
     if (text == addCMD)
     {
         auto &chat = message->chat;
@@ -159,6 +160,8 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
 {
     try
     {
+        PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
+              << ", to: " << listener;
         switch (message->getType())
         {
             case ElementType::HEADER:

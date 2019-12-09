@@ -26,7 +26,7 @@ public:
         }
     }
 
-    int isChanged() const noexcept
+    int changes() const noexcept
     {
         return sqlite3_changes(_connection);
     }
@@ -221,7 +221,7 @@ bool BotDB::newListener(int64_t id, std::string_view username,
 
     stmt.execute();
 
-    return connection.isChanged() != 0;
+    return connection.changes();
 }
 
 bool BotDB::deleteListener(int64_t id)
@@ -234,7 +234,7 @@ bool BotDB::deleteListener(int64_t id)
 
     stmt.execute();
 
-    return connection.isChanged() != 0;
+    return connection.changes();
 }
 
 std::vector<int64_t> BotDB::getListeners()
@@ -290,7 +290,9 @@ bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tag
 
     stmt.execute();
 
-    return connection.isChanged() != 0;
+    PLOGD_IF(!connection.changes()) << "Post: " << id << " is already in DB";
+
+    return connection.changes();
 }
 
 bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, const char* data)
@@ -313,7 +315,7 @@ bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, 
 
     stmt.execute();
 
-    return connection.isChanged() != 0;
+    return connection.changes();
 }
 
 void BotDB::markReactorPostsAsSent()

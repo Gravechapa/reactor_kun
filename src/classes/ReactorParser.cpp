@@ -85,21 +85,7 @@ void ReactorParser::setProxy(std::string_view address)
 
 void ReactorParser::init()
 {
-    auto curl = curl_easy_duphandle(_config);
-    auto start_page = _domain + _urlPath;
-    curl_easy_setopt(curl, CURLOPT_URL, start_page.c_str());
-    curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
-
-    std::string html;
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
-
-    _perform(curl);
-    curl_easy_cleanup(curl);
-
-    NextPageUrl nextPageUrl;
-    get_page_content(start_page.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
-                     &nextPageUrl, nullptr, false);
-    get_page_content_cleanup(&nextPageUrl);
+    update(10);
 }
 
 std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_view link)
@@ -146,12 +132,14 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
     return post;
 }
 
-void ReactorParser::update()
+void ReactorParser::update(int32_t lim)
 {
     std::string nextUrl = _domain + _urlPath;
 
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_COOKIE, "sfw=1;");
+    curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "cookie.txt");
+    curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "cookie.txt");
 
     NextPageUrl nextPageUrl;
 
@@ -160,7 +148,6 @@ void ReactorParser::update()
         std::string html;
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
         curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
-
         _perform(curl);
 
         if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
@@ -176,8 +163,11 @@ void ReactorParser::update()
         nextUrl = nextPageUrl.url;
         get_page_content_cleanup(&nextPageUrl);
 
-        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload)
+        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload
+                || (lim > 0 && nextPageUrl.counter >= lim))
         {
+            PLOGD << "Update completed: " << nextPageUrl.coincidenceCounter
+                  << ", " << nextPageUrl.counter;
             goto exit;
         }
     }

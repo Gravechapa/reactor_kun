@@ -17,7 +17,7 @@ public:
     static void setup(std::string_view domain, std::string_view urlPath);
     static void setProxy(std::string_view address);
     static void init();
-    static void update();
+    static void update(int32_t lim = 0);
     static std::queue<std::shared_ptr<BotMessage>> getPostByURL(std::string_view link);
     static std::queue<std::shared_ptr<BotMessage>> getRandomPost();
     static ContentInfo getContentInfo(std::string_view link);
