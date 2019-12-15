@@ -1,6 +1,5 @@
 #include "ReactorParser.hpp"
 #include "RustReactorParser.h"
-#include <iostream>
 #include <thread>
 #include <fstream>
 #include <utf8_string.hpp>

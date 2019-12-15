@@ -1,7 +1,6 @@
 #include "ReactorKun.hpp"
 #include <curl/curl.h>
 #include "ReactorParser.hpp"
-#include <iostream>
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
 #include "SpinGuard.hpp"
@@ -23,6 +22,10 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     if (_config.isProxyEnabledForReactor())
     {
         ReactorParser::setProxy(_config.getProxy());
+    }
+    if (!BotDB::getBotDB().setCurrentReactorPath(StringTools::urlDecode(_config.getReactorUrlPath())))
+    {
+        BotDB::getBotDB().clear();
     }
     if (BotDB::getBotDB().empty())
     {

@@ -8,11 +8,20 @@
     "popularity": "May be: all, new, good or best",
     "popularity": "all",
 
-    "tag": "tag or empty string",
-    "tag": "котэ",
+    "tag": "optional",
+    "tag": {
+        "mode": "0 - plain text like: /b, котэ, Властелин колец",
+        "mode": "1 - post-processed text like: %2Fb, котэ, Властелин+колец",
+        "mode": "2 - encoded url(percent-encoding) like: %252Fb(%2Fb), %D0%BA%D0%BE%D1%82%D1%8D(котэ),",
+        "mode": "%D0%92%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D0%BB%D0%B8%D0%BD+%D0%BA%D0%BE%D0%BB%D0%B5%D1%86(Властелин+колец)",
+        "mode": 0,
+        "data": "tag or empty string",
+        "data": "котэ"
+    },
 
     "enableFilesDownloading": false,
 
+    "proxy": "optional",
     "proxy": {
         "enableForReactor": true,
         "enableForTelegram": true,

@@ -3,7 +3,6 @@
 #include "ReactorParser.hpp"
 #include <thread>
 #include <utility>
-#include <iostream>
 #include <stdexcept>
 #include <sqlite3.h>
 #include <plog/Log.h>
@@ -181,6 +180,12 @@ BotDB::BotDB(std::string_view path)
         throw std::runtime_error("Yours sqlite don't have multithread support");
     }
     Connection connection(std::string(path), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX);
+
+    {
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS flags (NAME TEXT PRIMARY KEY NOT NULL," \
+                                          " VALUE TEXT NULL);");
+        stmt.execute();
+    }
 
     {
         PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS listeners (ID INTEGER PRIMARY KEY NOT NULL," \
@@ -405,6 +410,38 @@ bool BotDB::empty()
     PreparedStatment stmt(connection, "SELECT count(*) FROM reactor_urls;");
     stmt.next();
     return !stmt.getInt(0);
+}
+
+void BotDB::clear()
+{
+    Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
+    {
+        PreparedStatment stmt(connection, "DELETE FROM reactor_urls;");
+        stmt.execute();
+    }
+    PreparedStatment stmt(connection, "DELETE FROM reactor_data;");
+    stmt.execute();
+}
+
+bool BotDB::setCurrentReactorPath(std::string_view path)
+{
+    Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
+
+    {
+        PreparedStatment stmt(connection, "SELECT VALUE FROM flags WHERE NAME = \"ReactorPath\";");
+        if (stmt.next())
+        {
+            if (stmt.getText(0) == path)
+            {
+                return true;
+            }
+        }
+    }
+    PreparedStatment stmt(connection,
+                          "INSERT OR REPLACE INTO flags (NAME, VALUE) VALUES (\"ReactorPath\", ?);");
+    stmt.bindText(1, path);
+    stmt.execute();
+    return false;
 }
 
 BotDB& BotDB::getBotDB()

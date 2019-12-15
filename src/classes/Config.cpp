@@ -1,6 +1,6 @@
 #include "Config.hpp"
-#include "iostream"
 #include <tgbot/tools/StringTools.h>
+#include <plog/Log.h>
 
 Config::Config(std::string configFile)
 {
@@ -45,16 +45,39 @@ Config::Config(std::string configFile)
      }
     auto domain = it.value().get<std::string>();
 
+    std::string tag;
+    uint8_t tagMode{};
     it = json.find("tag");
-    if (it == json.end())
-     {
-         throw std::runtime_error("Config file don't have \"tag\" field");
-     }
-    if (!it.value().is_string())
-     {
-         throw std::runtime_error("Bad config: field \"tag\" is not a string");
-     }
-    auto tag = it.value().get<std::string>();
+    if (it != json.end())
+    {
+        if(!it.value().is_object())
+        {
+            throw std::runtime_error("Bad config: field \"tag\" is not an object");
+        }
+        nlohmann::json tagJson = it.value().get<nlohmann::json>();
+
+        auto tagIt = tagJson.find("mode");
+        if (tagIt == tagJson.end())
+         {
+             throw std::runtime_error("Config file don't have \"tag::mode\" field");
+         }
+        if (!tagIt.value().is_number_unsigned())
+         {
+             throw std::runtime_error("Bad config: field \"tag::mode\" is not an unsigned number");
+         }
+        tagMode = tagIt.value().get<uint8_t>();
+
+        tagIt = tagJson.find("data");
+        if (tagIt == tagJson.end())
+         {
+             throw std::runtime_error("Config file don't have \"tag::data\" field");
+         }
+        if (!tagIt.value().is_string())
+         {
+             throw std::runtime_error("Bad config: field \"tag::data\" is not a string");
+         }
+         tag = tagIt.value().get<std::string>();
+    }
 
     it = json.find("popularity");
     if (it == json.end())
@@ -67,11 +90,13 @@ Config::Config(std::string configFile)
      }
     auto popularity = it.value().get<std::string>();
 
-    auto errmsg = generateReactorUrl(domain, tag, popularity);
+    _processTag(tag, tagMode);
+    auto errmsg = generateReactorUrl(domain, popularity);
     if (!errmsg.empty())
     {
-        std::cerr << errmsg << "result url: " << _reactorDomain << _reactorUrlPath;
+        PLOGE << errmsg;
     }
+    PLOGI << "result url: " << _reactorDomain << _reactorUrlPath;
 
     it = json.find("enableFilesDownloading");
     if (it == json.end())
@@ -167,9 +192,48 @@ Config::Config(std::string configFile)
     }
 }
 
-std::string Config::generateReactorUrl(std::string_view domain,
-                        std::string_view tag,
-                        std::string_view popularity)
+void Config::_processTag(std::string_view tag, uint8_t mode)
+{
+    switch (mode)
+    {
+        case 0:
+        {
+            _reactorTag.clear();
+            size_t pos = 0;
+            for (size_t i = pos; i < tag.size(); ++i)
+            {
+                std::string replace;
+                if (tag[i] == ' ')
+                {
+                    replace = '+';
+                }
+                else if(tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
+                {
+                    replace = StringTools::urlEncode(std::string(1, tag[i]));
+                }
+
+                if (!replace.empty())
+                {
+                    _reactorTag += tag.substr(pos, i - pos);
+                    _reactorTag += replace;
+                    pos = i + 1;
+                }
+            }
+            _reactorTag += tag.substr(pos);
+            break;
+        }
+        case 1:
+            _reactorTag = tag;
+            break;
+        case 2:
+            _reactorTag = StringTools::urlDecode(std::string(tag));
+            break;
+        default:
+            throw std::runtime_error("Bad config: unknown tag mode");
+    }
+}
+
+std::string Config::generateReactorUrl(std::string_view domain, std::string_view popularity)
 {
     std::string errorMsg;
     std::string result;
@@ -188,22 +252,14 @@ std::string Config::generateReactorUrl(std::string_view domain,
         _reactorDomain += "old.reactor.cc/";
     }
 
-    if (!tag.empty())
+    if (!_reactorTag.empty())
     {
-        if (tag.find('/') == std::string_view::npos)
-        {
-            result += "tag/" + StringTools::urlEncode(std::string(tag)) + "/";
-        }
-        else
-        {
-            errorMsg += "tag has unknown value falling back to default(empty)/";
-            tag = "";
-        }
+        result += "tag/" + StringTools::urlEncode(_reactorTag) + "/";
     }
 
     if (popularity == "all")
     {
-        if (tag.empty())
+        if (_reactorTag.empty())
         {
             result += "new";
         }
@@ -214,7 +270,7 @@ std::string Config::generateReactorUrl(std::string_view domain,
     }
     else if (popularity == "new")
     {
-        if (tag.empty())
+        if (_reactorTag.empty())
         {
             result += "all";
         }

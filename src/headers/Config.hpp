@@ -9,9 +9,7 @@ class Config
 public:
     Config(std::string configFile);
 
-    std::string generateReactorUrl(std::string_view domain,
-                            std::string_view tag,
-                            std::string_view popularity);
+    std::string generateReactorUrl(std::string_view domain, std::string_view popularity);
 
     const std::string& getToken() const;
     const std::string& getSU() const;
@@ -23,10 +21,13 @@ public:
     const std::string& getProxy() const;
 
 private:
+    void _processTag(std::string_view tag, uint8_t mode);
+
     std::string _token;
     std::string _superUserName;
     std::string _reactorDomain;
     std::string _reactorUrlPath;
+    std::string _reactorTag;
     bool _filesDownloadingEnable;
     std::string _proxyAddress;
     bool _enableProxyForReactor;

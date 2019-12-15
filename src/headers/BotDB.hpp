@@ -22,6 +22,8 @@ public:
     std::queue<std::shared_ptr<BotMessage>> getNotSentReactorPosts();
     std::queue<std::shared_ptr<BotMessage>> getLatestReactorPost();
     bool empty();
+    void clear();
+    bool setCurrentReactorPath(std::string_view path);
 
     static BotDB& getBotDB();
 
