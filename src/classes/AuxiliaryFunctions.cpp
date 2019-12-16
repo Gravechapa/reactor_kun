@@ -1,6 +1,8 @@
 #include "AuxiliaryFunctions.hpp"
 #include <fstream>
-
+#include <utf8_string.hpp>
+#include "TgLimits.hpp"
+#include <plog/Log.h>
 
 #define readbyte(a,b) do if(((a) = (b).get()) == EOF) return Dimension(); while (0)
 #define readword(a,b) do {int32_t cc_= 0, dd_ = 0; \
@@ -72,5 +74,48 @@ Dimension getJpegResolution(std::string_view path) //http://carnage-melon.tom7.o
                 break;
             }
         }
+    }
+}
+
+void textSplitter(std::string &text,
+                  std::queue<std::shared_ptr<BotMessage>> &accumulator)
+{
+    UTF8string utf8Text(text);
+    size_t pos = 0;
+    size_t skip = 0;
+    while (pos < utf8Text.utf8_length())
+    {
+        size_t count = TgLimits::maxMessageUtf8Char;
+        if (pos + count <= utf8Text.utf8_length())
+        {
+            bool check = false;
+            for (size_t i = count; i > skip; --i)
+            {
+                if (utf8Text.utf8_at(pos + i - 1) == " ")
+                {
+                    skip = count - i;
+                    count = i;
+                    check = true;
+                    break;
+                }
+            }
+            if (!check)
+            {
+                skip = 0;
+            }
+        }
+        auto splittedString = utf8Text.utf8_substr(pos, count);
+        accumulator.emplace(new TextMessage(splittedString.utf8_sstring()));
+        pos += count;
+    }
+}
+
+void configCurlProxy(CURL *curl, std::string_view address, std::string_view usePwd)
+{
+    curl_easy_setopt(curl, CURLOPT_PROXY, address.data());
+    if (!usePwd.empty())
+    {
+            curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANYSAFE);
+            curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, usePwd.data());
     }
 }

@@ -1,11 +1,11 @@
 #include "BotDB.hpp"
 #include <inttypes.h>
 #include "ReactorParser.hpp"
-#include <thread>
 #include <utility>
 #include <stdexcept>
 #include <sqlite3.h>
 #include <plog/Log.h>
+#include "AuxiliaryFunctions.hpp"
 
 class Connection
 {
@@ -389,7 +389,7 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
 
                 if (!text.empty())
                 {
-                    ReactorParser::textSplitter(text, accumulator);
+                    textSplitter(text, accumulator);
                 }
                 if (type != ElementType::TEXT)
                 {

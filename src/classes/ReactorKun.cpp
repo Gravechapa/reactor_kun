@@ -1,5 +1,4 @@
 #include "ReactorKun.hpp"
-#include <curl/curl.h>
 #include "ReactorParser.hpp"
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
@@ -11,7 +10,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
 {
     if (_config.isProxyEnabledForTelegram())
     {
-        curl_easy_setopt(curlClient.curlSettings, CURLOPT_PROXY, _config.getProxy().c_str());
+        configCurlProxy(curlClient.curlSettings, _config.getProxy(), _config.getProxyUsePwd());
     }
     curl_easy_setopt(curlClient.curlSettings, CURLOPT_TIMEOUT, 300L);
 
@@ -21,7 +20,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     ReactorParser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
     if (_config.isProxyEnabledForReactor())
     {
-        ReactorParser::setProxy(_config.getProxy());
+        ReactorParser::setProxy(_config.getProxy(), _config.getProxyUsePwd());
     }
     if (!BotDB::getBotDB().setCurrentReactorPath(StringTools::urlDecode(_config.getReactorUrlPath())))
     {

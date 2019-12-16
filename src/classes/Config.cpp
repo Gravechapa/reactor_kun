@@ -186,9 +186,30 @@ Config::Config(std::string configFile)
          }
         uint16_t proxyPort = proxyIt.value().get<uint16_t>();
 
-        //TODO: add proxy auth
-
         _proxyAddress = proxyType + "://" + proxyAddress + ":" + std::to_string(proxyPort);
+
+        std::string proxyUser;
+        std::string proxyPassword;
+        proxyIt = proxyJson.find("user");
+        if (proxyIt != proxyJson.end())
+        {
+            if (!proxyIt.value().is_string())
+            {
+                throw std::runtime_error("Bad config: field \"proxy::user\" is not a string");
+            }
+            proxyUser = proxyIt.value().get<std::string>();
+        }
+
+        proxyIt = proxyJson.find("password");
+        if (proxyIt != proxyJson.end())
+        {
+            if (!proxyIt.value().is_string())
+            {
+                throw std::runtime_error("Bad config: field \"proxy::password\" is not a string");
+            }
+            proxyPassword = proxyIt.value().get<std::string>();
+        }
+        _proxyUsePwd = StringTools::urlEncode(proxyUser) + ':' + StringTools::urlEncode(proxyPassword);
     }
 }
 
@@ -330,4 +351,9 @@ bool Config::isProxyEnabledForTelegram() const
 const std::string& Config::getProxy() const
 {
     return _proxyAddress;
+}
+
+const std::string& Config::getProxyUsePwd() const
+{
+    return _proxyUsePwd;
 }

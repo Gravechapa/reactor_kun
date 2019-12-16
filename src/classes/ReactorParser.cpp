@@ -1,10 +1,8 @@
 #include "ReactorParser.hpp"
 #include "RustReactorParser.h"
-#include <thread>
 #include <fstream>
-#include <utf8_string.hpp>
-#include "TgLimits.hpp"
 #include <plog/Log.h>
+#include "BotDB.hpp"
 
 std::string ReactorParser::_domain;
 std::string ReactorParser::_urlPath;
@@ -31,7 +29,7 @@ bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data
 
     if (!string.empty())
     {
-        ReactorParser::textSplitter(string, *accumulator);
+        textSplitter(string, *accumulator);
     }
     if (static_cast<ElementType>(type) != ElementType::TEXT)
     {
@@ -77,9 +75,9 @@ void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
     set_log_callback(&reactorLog);
 }
 
-void ReactorParser::setProxy(std::string_view address)
+void ReactorParser::setProxy(std::string_view address, std::string_view usePwd)
 {
-    curl_easy_setopt(_config, CURLOPT_PROXY, address.data());
+    configCurlProxy(_config, address, usePwd);
 }
 
 void ReactorParser::init()
@@ -236,38 +234,5 @@ void ReactorParser::_perform(CURL *curl)
         PLOGW << "Curl issue: " << curl_easy_strerror(result)
                   << " Retrying: " << counter;
         std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-}
-
-void ReactorParser::textSplitter(std::string &text,
-                                 std::queue<std::shared_ptr<BotMessage>> &accumulator)
-{
-    UTF8string utf8Text(text);
-    size_t pos = 0;
-    size_t skip = 0;
-    while (pos < utf8Text.utf8_length())
-    {
-        size_t count = TgLimits::maxMessageUtf8Char;
-        if (pos + count <= utf8Text.utf8_length())
-        {
-            bool check = false;
-            for (size_t i = count; i > skip; --i)
-            {
-                if (utf8Text.utf8_at(pos + i - 1) == " ")
-                {
-                    skip = count - i;
-                    count = i;
-                    check = true;
-                    break;
-                }
-            }
-            if (!check)
-            {
-                skip = 0;
-            }
-        }
-        auto splittedString = utf8Text.utf8_substr(pos, count);
-        accumulator.emplace(new TextMessage(splittedString.utf8_sstring()));
-        pos += count;
     }
 }

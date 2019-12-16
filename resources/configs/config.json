@@ -28,7 +28,9 @@
         "type": "socks5",
         "address": "127.0.0.1",
         "port": 9050,
-        "user": null,
-        "password": null
+        "user": "optional",
+        "user": "",
+        "password": "optional",
+        "password": ""
     }
 }

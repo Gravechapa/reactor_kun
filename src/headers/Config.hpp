@@ -19,6 +19,7 @@ public:
     bool isProxyEnabledForReactor() const;
     bool isProxyEnabledForTelegram() const;
     const std::string& getProxy() const;
+    const std::string& getProxyUsePwd() const;
 
 private:
     void _processTag(std::string_view tag, uint8_t mode);
@@ -30,6 +31,7 @@ private:
     std::string _reactorTag;
     bool _filesDownloadingEnable;
     std::string _proxyAddress;
+    std::string _proxyUsePwd;
     bool _enableProxyForReactor;
     bool _enableProxyForTelegram;
 };
