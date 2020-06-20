@@ -215,6 +215,13 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                 }
                 break;
             }
+            case ElementType::CENSORSHIP:
+            {
+                auto file = TgBot::InputFile::fromFile("censorship.jpg",
+                                                       "image/jpeg");
+                getApi().sendPhoto(listener, file);
+                break;
+            }
             case ElementType::FOOTER:
                 auto footer = static_cast<PostFooterMessage*>(message.get());
                 getApi().sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",

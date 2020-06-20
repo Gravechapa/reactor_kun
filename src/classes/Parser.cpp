@@ -31,6 +31,10 @@ bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data
     {
         textSplitter(string, *accumulator);
     }
+    if (!data)
+    {
+        data = "";
+    }
     if (static_cast<ElementType>(type) != ElementType::TEXT)
     {
         accumulator->emplace(new DataMessage(static_cast<ElementType>(type), data));
