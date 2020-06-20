@@ -1,19 +1,19 @@
-#include "ReactorParser.hpp"
+#include "Parser.hpp"
 #include "RustReactorParser.h"
 #include <fstream>
 #include <plog/Log.h>
 #include "BotDB.hpp"
 
-std::string ReactorParser::_domain;
-std::string ReactorParser::_urlPath;
-int ReactorParser::_overload = 2000;
+std::string Parser::_domain;
+std::string Parser::_urlPath;
+int Parser::_overload = 2000;
 
-std::mutex ReactorParser::_lock;
-std::chrono::high_resolution_clock::time_point ReactorParser::_timePoint =
+std::mutex Parser::_lock;
+std::chrono::high_resolution_clock::time_point Parser::_timePoint =
         std::chrono::high_resolution_clock::now();
-const std::chrono::milliseconds ReactorParser::_delay = std::chrono::milliseconds(10);
+const std::chrono::milliseconds Parser::_delay = std::chrono::milliseconds(10);
 
-CURL * const ReactorParser::_config{curl_easy_init()};
+CURL * const Parser::_config{curl_easy_init()};
 
 bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
 {
@@ -65,7 +65,7 @@ size_t WriteFileCallback(char *contents, size_t size, size_t nmemb, void *userp)
     return size * nmemb;
 }
 
-void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
+void Parser::setup(std::string_view domain, std::string_view urlPath)
 {
     _domain = domain;
     _urlPath = urlPath;
@@ -75,17 +75,17 @@ void ReactorParser::setup(std::string_view domain, std::string_view urlPath)
     set_log_callback(&reactorLog);
 }
 
-void ReactorParser::setProxy(std::string_view address, std::string_view usePwd)
+void Parser::setProxy(std::string_view address, std::string_view usePwd)
 {
     configCurlProxy(_config, address, usePwd);
 }
 
-void ReactorParser::init()
+void Parser::init()
 {
     update(10);
 }
 
-std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_view link)
+std::queue<std::shared_ptr<BotMessage>> Parser::getPostByURL(std::string_view link)
 {
     std::queue<std::shared_ptr<BotMessage>> post;
 
@@ -106,14 +106,15 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getPostByURL(std::string_
 
     if (!post.empty())
     {
-        post.emplace(new PostFooterMessage());
+        auto header = static_cast<PostHeaderMessage*>(post.front().get());
+        post.emplace(new PostFooterMessage(header->getTags()));
     }
 
     curl_easy_cleanup(curl);
     return post;
 }
 
-std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
+std::queue<std::shared_ptr<BotMessage>> Parser::getRandomPost()
 {
     auto curl = curl_easy_duphandle(_config);
     std::string link = _domain + "/random";
@@ -129,7 +130,7 @@ std::queue<std::shared_ptr<BotMessage>> ReactorParser::getRandomPost()
     return post;
 }
 
-void ReactorParser::update(int32_t lim)
+void Parser::update(int32_t lim)
 {
     std::string nextUrl = _domain + _urlPath;
 
@@ -173,7 +174,7 @@ void ReactorParser::update(int32_t lim)
         curl_easy_cleanup(curl);
 }
 
-ContentInfo ReactorParser::getContentInfo(std::string_view link)
+ContentInfo Parser::getContentInfo(std::string_view link)
 {
     auto curl = curl_easy_duphandle(_config);
     curl_easy_setopt(curl, CURLOPT_URL, link.data());
@@ -193,7 +194,7 @@ ContentInfo ReactorParser::getContentInfo(std::string_view link)
     return contentInfo;
 }
 
-bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
+bool Parser::getContent(std::string_view link, std::string_view filePath)
 {
     std::ofstream file(std::string(filePath), std::ofstream::binary);
     if (!file.is_open())
@@ -216,7 +217,7 @@ bool ReactorParser::getContent(std::string_view link, std::string_view filePath)
     return true;
 }
 
-void ReactorParser::_perform(CURL *curl)
+void Parser::_perform(CURL *curl)
 {
     std::unique_lock lockGuard(_lock);
     wait(_delay, _timePoint);

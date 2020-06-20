@@ -1,9 +1,10 @@
 #include "ReactorKun.hpp"
-#include "ReactorParser.hpp"
+#include "Parser.hpp"
 #include "TgLimits.hpp"
 #include "FileManager.hpp"
 #include "SpinGuard.hpp"
 #include <plog/Log.h>
+
 
 ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     TgBot::Bot(config.getToken(), curlClient), _config(std::move(config))
@@ -17,10 +18,10 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     getEvents().onAnyMessage(std::bind(&ReactorKun::_onUpdate, this, std::placeholders::_1));
     _botName = getApi().getMe()->username;
     getApi().deleteWebhook();
-    ReactorParser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
+    Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
     if (_config.isProxyEnabledForReactor())
     {
-        ReactorParser::setProxy(_config.getProxy(), _config.getProxyUsePwd());
+        Parser::setProxy(_config.getProxy(), _config.getProxyUsePwd());
     }
     if (!BotDB::getBotDB().setCurrentReactorPath(StringTools::urlDecode(_config.getReactorUrlPath())))
     {
@@ -28,7 +29,7 @@ ReactorKun::ReactorKun(Config &&config, TgBot::CurlHttpClient &curlClient):
     }
     if (BotDB::getBotDB().empty())
     {
-        ReactorParser::init();
+        Parser::init();
     }
     DataMessage::isDownloadingEnable(_config.isFilesDownloadingEnabled());
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
@@ -171,7 +172,7 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                 auto header = static_cast<PostHeaderMessage*>(message.get());
                 getApi().sendMessage(listener, "*Ссылка:* " + header->getUrl() +
                                      "\n*Теги:* " + header->getTags(),
-                                     true, 0, nullptr, "Markdown", false);
+                                     true, 0, nullptr, "Markdown", true);
                 break;
             }
             case ElementType::TEXT:
@@ -215,8 +216,9 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                 break;
             }
             case ElementType::FOOTER:
-                getApi().sendMessage(listener, u8"☣️*Конец*☣️",
-                                     true, 0, nullptr, "Markdown", true);
+                auto footer = static_cast<PostFooterMessage*>(message.get());
+                getApi().sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",
+                                     true, 0, nullptr, "Markdown", false);
                 break;
         }
     }
@@ -257,11 +259,11 @@ void ReactorKun::_mailerHandler()
             std::queue<std::shared_ptr<BotMessage>> post;
             if (tasks.front().second.empty())
             {
-                post = ReactorParser::getRandomPost();
+                post = Parser::getRandomPost();
             }
             else
             {
-                post = ReactorParser::getPostByURL(tasks.front().second);
+                post = Parser::getPostByURL(tasks.front().second);
             }
 
             if (!post.empty())
@@ -279,7 +281,7 @@ void ReactorKun::_mailerHandler()
         if (std::chrono::high_resolution_clock::now() - updatePoint > _mailerUpdateDelay)
         {
             updatePoint = std::chrono::high_resolution_clock::now();
-            ReactorParser::update();
+            Parser::update();
             boost::this_thread::interruption_point();
 
             auto listeners = BotDB::getBotDB().getListeners();

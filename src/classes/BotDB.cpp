@@ -1,6 +1,6 @@
 #include "BotDB.hpp"
 #include <inttypes.h>
-#include "ReactorParser.hpp"
+#include "Parser.hpp"
 #include <utility>
 #include <stdexcept>
 #include <sqlite3.h>
@@ -369,8 +369,10 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
    {
         ++count;
         int64_t id = resultSetUrls.getInt64(0);
+
+        std::string tags = resultSetUrls.getText(2);
         accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1),
-                                                       resultSetUrls.getText(2)));
+                                                  tags));
 
         if (resultSetData.isBeforeFirst())
         {
@@ -398,7 +400,7 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
             }
             while (resultSetData.next());
         }
-        accumulator.emplace(new PostFooterMessage());
+        accumulator.emplace(new PostFooterMessage(tags));
     }
     return count;
 }

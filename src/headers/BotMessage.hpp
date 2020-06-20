@@ -9,6 +9,7 @@ enum class ElementType: int32_t
     IMG,
     DOCUMENT,
     URL,
+    CENSORSHIP,
     HEADER,
     FOOTER
 };
@@ -79,5 +80,9 @@ private:
 class PostFooterMessage: public BotMessage
 {
 public:
-    PostFooterMessage(): BotMessage(ElementType::FOOTER){}
+    PostFooterMessage(const std::string &tags);
+    std::string_view getSignature() const;
+
+private:
+    std::string_view _signature;
 };

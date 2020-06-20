@@ -1,9 +1,12 @@
 #include "BotMessage.hpp"
-#include "ReactorParser.hpp"
+#include "Parser.hpp"
 #include "TgLimits.hpp"
 #include <tgbot/tools/StringTools.h>
 #include "FileManager.hpp"
 #include "AuxiliaryFunctions.hpp"
+#include "Signature.hpp"
+
+#include <regex>
 
 bool DataMessage::_downloadingEnable = true;
 
@@ -52,7 +55,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
         _fileName = _url.substr(pos + 1);
         _url = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
 
-        ContentInfo info = ReactorParser::getContentInfo(_url);
+        ContentInfo info = Parser::getContentInfo(_url);
 
         if (info.size == 0 || info.type.empty())
         {
@@ -161,4 +164,24 @@ const std::string& PostHeaderMessage::getUrl() const
 const std::string& PostHeaderMessage::getTags() const
 {
     return _tags;
+}
+
+PostFooterMessage::PostFooterMessage(const std::string &tags): BotMessage(ElementType::FOOTER)
+{
+    const static std::regex reg(R"(^.*(вирус|война|war|virus).*$)");
+    static Signature sig;
+
+    if (std::regex_match(tags, reg))
+    {
+        _signature = sig.get_end();
+    }
+    else
+    {
+        _signature = sig.get_random();
+    }
+}
+
+std::string_view PostFooterMessage::getSignature() const
+{
+    return _signature;
 }

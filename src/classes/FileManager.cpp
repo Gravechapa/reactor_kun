@@ -1,5 +1,5 @@
 #include "FileManager.hpp"
-#include "ReactorParser.hpp"
+#include "Parser.hpp"
 
 FileManager::FileManager(std::string_view path)
 {
@@ -41,7 +41,7 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
         case FileState::DELETED:
             return FileStatus::NOTREADY;
         case FileState::NOTLOADED:
-            if (!ReactorParser::getContent(link, _folderPath.string() + "/" + fileName.data()))
+            if (!Parser::getContent(link, _folderPath.string() + "/" + fileName.data()))
             {
                 fs::remove(_folderPath.string() + "/" + it->first);
                 return FileStatus::ERROR;

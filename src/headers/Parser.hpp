@@ -8,7 +8,7 @@ struct ContentInfo
     std::string type = "";
 };
 
-class ReactorParser
+class Parser
 {
 public:
     static void setup(std::string_view domain, std::string_view urlPath);
