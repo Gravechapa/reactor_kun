@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11.4)
+cmake_minimum_required(VERSION 3.14)
 set(PROJECT Reactor_kun)
 project(${PROJECT})
 message(STATUS "Start configuring project ${Reactor_kun}")
@@ -37,14 +37,14 @@ include("${EXTERNAL_PROJECTS_DIR}/Plog.cmake")
 
 message(STATUS "Starting collecting files")
 aux_source_directory(${SOURCE_ROOT} SOURCES)
-file (GLOB_RECURSE SUB_SOURCES "${SOURCE_ROOT}/classes/*.c*")
+file(GLOB_RECURSE SUB_SOURCES "${SOURCE_ROOT}/classes/*.c*")
 set(SOURCES ${SOURCES} ${SUB_SOURCES})
 
-file (GLOB_RECURSE HEADERS "${SOURCE_ROOT}/headers/*.h*")
+file(GLOB_RECURSE HEADERS "${SOURCE_ROOT}/headers/*.h*")
 
 source_group(Classes FILES ${SUB_SOURCES})
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Threads REQUIRED)
@@ -59,7 +59,7 @@ add_definitions(-DHAVE_CURL)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules" ${CMAKE_MODULE_PATH})
 find_package (SQLite3)
-if (NOT SQLITE3_FOUND)
+if(NOT SQLITE3_FOUND)
     message(FATAL_ERROR "Sqlite not found")
 endif()
 include_directories(${SQLITE3_INCLUDE_DIRS})
@@ -89,8 +89,8 @@ target_link_libraries(${EXECUTABLE} ${CMAKE_THREAD_LIBS_INIT} TgBot dl
 
 
 #############Copies data files to a binary directory####################################
-set (DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
-file (GLOB_RECURSE CONFIGS RELATIVE "${DATA_FILES_DIR}" "${DATA_FILES_DIR}/configs/*")
+set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
+file(GLOB_RECURSE CONFIGS RELATIVE "${DATA_FILES_DIR}" "${DATA_FILES_DIR}/configs/*")
 
 foreach(CONFIG ${CONFIGS})
     configure_file(${DATA_FILES_DIR}/${CONFIG}

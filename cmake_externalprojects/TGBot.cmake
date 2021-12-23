@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11.4)
+cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -7,13 +7,7 @@ FetchContent_Declare(
     GIT_TAG            v1.1
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/tgbot"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/tgbot-bin"
-    PATCH_COMMAND      git apply "${CMAKE_SOURCE_DIR}/tgbot.patch"
+    PATCH_COMMAND      git restore * && git apply "${CMAKE_SOURCE_DIR}/tgbot.patch"
 )
-
-FetchContent_GetProperties(tgbot)
-if(NOT tgbot_POPULATED)
-    FetchContent_Populate(tgbot)
-    
-    add_subdirectory(${tgbot_SOURCE_DIR} ${tgbot_BINARY_DIR})
-    include_directories("${tgbot_SOURCE_DIR}/include")
-endif()
+FetchContent_MakeAvailable(tgbot)
+include_directories("${tgbot_SOURCE_DIR}/include")

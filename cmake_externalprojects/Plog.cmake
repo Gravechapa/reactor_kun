@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11.4)
+cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -6,11 +6,7 @@ FetchContent_Declare(
     GIT_REPOSITORY     https://github.com/SergiusTheBest/plog.git
     GIT_TAG            1.1.5
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/plog"
-    BINARY_DIR         ""
+    BINARY_DIR         "${CMAKE_BINARY_DIR}/plog-bin"
 )
-
-FetchContent_GetProperties(plog)
-if(NOT plog_POPULATED)
-    FetchContent_Populate(plog)
-    include_directories("${plog_SOURCE_DIR}/include")
-endif()
+FetchContent_MakeAvailable(plog)
+include_directories("${plog_SOURCE_DIR}/include")

@@ -1,16 +1,13 @@
-cmake_minimum_required(VERSION 3.11.4)
+cmake_minimum_required(VERSION 3.14)
 
+set(JSON_BuildTests OFF CACHE INTERNAL "")
 include(FetchContent)
 FetchContent_Declare(
     json
     GIT_REPOSITORY     https://github.com/nlohmann/json.git
     GIT_TAG            v3.2.0
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/json"
-    BINARY_DIR         ""
+    BINARY_DIR         "${CMAKE_BINARY_DIR}/json-bin"
 )
-
-FetchContent_GetProperties(json)
-if(NOT json_POPULATED)
-    FetchContent_Populate(json)
-    include_directories("${json_SOURCE_DIR}/include")
-endif()
+FetchContent_MakeAvailable(json)
+include_directories("${json_SOURCE_DIR}/include")
