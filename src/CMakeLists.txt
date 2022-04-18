@@ -7,6 +7,11 @@ target_include_directories(reactor_kun_core PUBLIC ../include/ReactorKun)
 
 add_dependencies(reactor_kun_core reactor_parser)
 
+check_ipo_supported(RESULT result)
+if(result)
+  set_target_properties(reactor_kun_core PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
+
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)

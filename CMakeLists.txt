@@ -43,6 +43,7 @@ message(STATUS "Fetching Plog")
 include("cmake/Plog.cmake")
 ###############################################
 
+include(CheckIPOSupported)
 add_subdirectory(src)
 add_subdirectory(apps)
 
