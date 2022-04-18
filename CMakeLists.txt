@@ -6,6 +6,8 @@ project(ReactorKun VERSION 1.1
 
 message(STATUS "Start configuring project ${CMAKE_PROJECT_NAME}")
 
+add_definitions(-DHAVE_CURL)
+
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     set(CMAKE_CXX_EXTENSIONS OFF)
@@ -23,40 +25,28 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     endif()
 endif()
 
+############# Fetch dependencies ##############
 include(FetchContent)
-############################TGbot####################################
-message(STATUS "Configure TGbot")
+message(STATUS "Fetching TGbot")
 include("cmake/TGBot.cmake")
-#####################################################################
 
-############################Json#####################################
-message(STATUS "Configure Json")
+message(STATUS "Fetching Json")
 include("cmake/Json.cmake")
-#####################################################################
 
-############################ReactorParser############################
-message(STATUS "Configure ReactorParser")
+message(STATUS "Fetching ReactorParser")
 include("cmake/ReactorParser.cmake")
-#####################################################################
 
-############################UTF8String###############################
-message(STATUS "Configure UTF8String")
+message(STATUS "Fetching UTF8String")
 include("cmake/UTF8String.cmake")
-#####################################################################
 
-############################Plog#####################################
-message(STATUS "Configure Plog")
+message(STATUS "Fetching Plog")
 include("cmake/Plog.cmake")
-#####################################################################
-
-
-add_definitions(-DHAVE_CURL)
+###############################################
 
 add_subdirectory(src)
 add_subdirectory(apps)
 
-
-#############Copies data files to a binary directory####################################
+######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
 file(GLOB_RECURSE CONFIGS RELATIVE "${DATA_FILES_DIR}" "${DATA_FILES_DIR}/configs/*")
 
