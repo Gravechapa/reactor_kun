@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 3.11.4)
-
-include(FetchContent)
 FetchContent_Declare(
     reactor_parser
     GIT_REPOSITORY     https://github.com/Gravechapa/reactor_parser.git

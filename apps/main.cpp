@@ -1,7 +1,7 @@
 #define BOOST_STACKTRACE_LINK
 #include <tgbot/tgbot.h>
 #include <curl/curl.h>
-#include "headers/Config.hpp"
+#include "Config.hpp"
 #include "ReactorKun.hpp"
 #include <thread>
 #include <boost/stacktrace.hpp>

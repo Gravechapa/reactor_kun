@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 3.14)
-
-include(FetchContent)
 FetchContent_Declare(
     tgbot
     GIT_REPOSITORY     https://github.com/reo7sp/tgbot-cpp.git

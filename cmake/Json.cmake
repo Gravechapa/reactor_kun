@@ -1,7 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
-
 set(JSON_BuildTests OFF CACHE INTERNAL "")
-include(FetchContent)
 FetchContent_Declare(
     json
     GIT_REPOSITORY     https://github.com/nlohmann/json.git
