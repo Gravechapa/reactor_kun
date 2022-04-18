@@ -1,7 +1,7 @@
 FetchContent_Declare(
     utf8_string
     GIT_REPOSITORY     https://github.com/Gumichan01/utf8_string.git
-    GIT_TAG            cbbe28c4adfcc293f6784cbd8c209c4c86484864
+    GIT_TAG            4e677cd3d7986dc1406f3b50e64ecaec68dd6b88
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/utf8_string"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/utf8_string-bin"
     INSTALL_COMMAND    ""
