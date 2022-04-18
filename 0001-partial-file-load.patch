@@ -1,21 +1,22 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 290c91c..5f587cf 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -48,7 +48,7 @@ find_package(OpenSSL REQUIRED)
- include_directories(${OPENSSL_INCLUDE_DIR})
- 
- ## curl
--find_package(CURL)
-+find_package(CURL 7.56.0)
- if (CURL_FOUND)
-     include_directories(${CURL_INCLUDE_DIRS})
-     add_definitions(-DHAVE_CURL)
+From 614b1f0e88d5b83124313c2b728ce3d3289d1253 Mon Sep 17 00:00:00 2001
+From: Gravechapa <Gravechapa@protonmail.com>
+Date: Mon, 18 Apr 2022 06:18:47 +0300
+Subject: [PATCH] partial file load
+
+---
+ include/tgbot/net/HttpReqArg.h  |  4 ++--
+ include/tgbot/types/InputFile.h |  9 ++-------
+ src/Api.cpp                     | 36 ++++++++++++++++-----------------
+ src/net/CurlHttpClient.cpp      |  7 +++++--
+ src/net/HttpParser.cpp          |  6 +++++-
+ src/types/InputFile.cpp         |  5 +----
+ 6 files changed, 33 insertions(+), 34 deletions(-)
+
 diff --git a/include/tgbot/net/HttpReqArg.h b/include/tgbot/net/HttpReqArg.h
-index a263224..b61bbe2 100644
+index fcdd424..8a801a2 100644
 --- a/include/tgbot/net/HttpReqArg.h
 +++ b/include/tgbot/net/HttpReqArg.h
-@@ -41,8 +41,8 @@ class HttpReqArg {
+@@ -20,8 +20,8 @@ class TGBOT_API HttpReqArg {
  
  public:
      template<typename T>
@@ -27,10 +28,10 @@ index a263224..b61bbe2 100644
      }
  
 diff --git a/include/tgbot/types/InputFile.h b/include/tgbot/types/InputFile.h
-index 3161a84..fe89d9a 100644
+index 0467d87..030d604 100644
 --- a/include/tgbot/types/InputFile.h
 +++ b/include/tgbot/types/InputFile.h
-@@ -39,11 +39,6 @@ class InputFile {
+@@ -18,20 +18,15 @@ class TGBOT_API InputFile {
  public:
      typedef std::shared_ptr<InputFile> Ptr;
  
@@ -42,9 +43,11 @@ index 3161a84..fe89d9a 100644
      /**
       * @brief Mime type of a file.
       */
-@@ -52,7 +47,7 @@ public:
+     std::string mimeType;
+ 
      /**
-      * @brief File name.
+-     * @brief File name.
++     * @brief File path.
       */
 -    std::string fileName;
 +    std::string filePath;
@@ -52,10 +55,10 @@ index 3161a84..fe89d9a 100644
      /**
       * @brief Creates new InputFile::Ptr from an existing file.
 diff --git a/src/Api.cpp b/src/Api.cpp
-index 6b41947..a618a0f 100644
+index ff39805..a9a5581 100644
 --- a/src/Api.cpp
 +++ b/src/Api.cpp
-@@ -81,7 +81,7 @@ Message::Ptr Api::sendPhoto(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -87,7 +87,7 @@ Message::Ptr Api::sendPhoto(std::int64_t chatId, boost::variant<InputFile::Ptr,
      args.emplace_back("chat_id", chatId);
      if (photo.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(photo);
@@ -64,7 +67,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("photo", boost::get<std::string>(photo));
      }
-@@ -109,7 +109,7 @@ Message::Ptr Api::sendAudio(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -115,7 +115,7 @@ Message::Ptr Api::sendAudio(std::int64_t chatId, boost::variant<InputFile::Ptr,
      args.emplace_back("chat_id", chatId);
      if (audio.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(audio);
@@ -73,7 +76,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("audio", boost::get<std::string>(audio));
      }
-@@ -127,7 +127,7 @@ Message::Ptr Api::sendAudio(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -133,7 +133,7 @@ Message::Ptr Api::sendAudio(std::int64_t chatId, boost::variant<InputFile::Ptr,
      }
      if (thumb.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(thumb);
@@ -82,7 +85,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          auto thumbStr = boost::get<std::string>(thumb);
          if (!thumbStr.empty()) {
-@@ -155,13 +155,13 @@ Message::Ptr Api::sendDocument(int64_t chatId, const boost::variant<InputFile::P
+@@ -161,13 +161,13 @@ Message::Ptr Api::sendDocument(std::int64_t chatId, boost::variant<InputFile::Pt
      args.emplace_back("chat_id", chatId);
      if (document.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(document);
@@ -98,7 +101,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          auto thumbStr = boost::get<std::string>(thumb);
          if (!thumbStr.empty()) {
-@@ -282,7 +282,7 @@ Message::Ptr Api::sendSticker(int64_t chatId, const boost::variant<InputFile::Pt
+@@ -289,7 +289,7 @@ Message::Ptr Api::sendSticker(std::int64_t chatId, boost::variant<InputFile::Ptr
      args.emplace_back("chat_id", chatId);
      if (sticker.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(sticker);
@@ -107,7 +110,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("sticker", boost::get<std::string>(sticker));
      }
-@@ -309,7 +309,7 @@ File::Ptr Api::uploadStickerFile(int32_t userId, const InputFile::Ptr pngSticker
+@@ -316,7 +316,7 @@ File::Ptr Api::uploadStickerFile(std::int64_t userId, const InputFile::Ptr pngSt
      vector<HttpReqArg> args;
      args.reserve(2);
      args.emplace_back("user_id", userId);
@@ -116,7 +119,7 @@ index 6b41947..a618a0f 100644
      return _tgTypeParser.parseJsonAndGetFile(sendRequest("uploadStickerFile", args));
  }
  
-@@ -321,7 +321,7 @@ bool Api::createNewStickerSet(int32_t userId, const string& name, const string&
+@@ -328,7 +328,7 @@ bool Api::createNewStickerSet(std::int64_t userId, const string& name, const str
      args.emplace_back("title", title);
      if (pngSticker.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(pngSticker);
@@ -125,8 +128,8 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("png_sticker", boost::get<std::string>(pngSticker));
      }
-@@ -343,7 +343,7 @@ bool Api::addStickerToSet(int32_t userId, const string& name, const string& titl
-     args.emplace_back("title", title);
+@@ -349,7 +349,7 @@ bool Api::addStickerToSet(std::int64_t userId, const string& name, boost::varian
+     args.emplace_back("name", name);
      if (pngSticker.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(pngSticker);
 -        args.emplace_back("png_sticker", file->data, true, file->mimeType, file->fileName);
@@ -134,7 +137,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("png_sticker", boost::get<std::string>(pngSticker));
      }
-@@ -375,7 +375,7 @@ Message::Ptr Api::sendVideo(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -381,7 +381,7 @@ Message::Ptr Api::sendVideo(std::int64_t chatId, boost::variant<InputFile::Ptr,
      args.emplace_back("chat_id", chatId);
      if (video.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(video);
@@ -143,7 +146,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("video", boost::get<std::string>(video));
      }
-@@ -393,7 +393,7 @@ Message::Ptr Api::sendVideo(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -399,7 +399,7 @@ Message::Ptr Api::sendVideo(std::int64_t chatId, boost::variant<InputFile::Ptr,
      }
      if (thumb.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(thumb);
@@ -152,7 +155,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          auto thumbStr = boost::get<std::string>(thumb);
          if (!thumbStr.empty()) {
-@@ -424,7 +424,7 @@ Message::Ptr Api::sendAnimation(int64_t chatId, const boost::variant<InputFile::
+@@ -430,7 +430,7 @@ Message::Ptr Api::sendAnimation(std::int64_t chatId, boost::variant<InputFile::P
      args.emplace_back("chat_id", chatId);
      if (animation.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(animation);
@@ -161,7 +164,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("animation", boost::get<std::string>(animation));
      }
-@@ -439,7 +439,7 @@ Message::Ptr Api::sendAnimation(int64_t chatId, const boost::variant<InputFile::
+@@ -445,7 +445,7 @@ Message::Ptr Api::sendAnimation(std::int64_t chatId, boost::variant<InputFile::P
      }
      if (thumb.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(thumb);
@@ -170,7 +173,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          auto thumbStr = boost::get<std::string>(thumb);
          if (!thumbStr.empty()) {
-@@ -470,7 +470,7 @@ Message::Ptr Api::sendVideoNote(int64_t chatId, const boost::variant<InputFile::
+@@ -476,7 +476,7 @@ Message::Ptr Api::sendVideoNote(std::int64_t chatId, boost::variant<InputFile::P
      args.emplace_back("chat_id", chatId);
      if (videoNote.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(videoNote);
@@ -179,7 +182,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("video_note", boost::get<std::string>(videoNote));
      }
-@@ -485,7 +485,7 @@ Message::Ptr Api::sendVideoNote(int64_t chatId, const boost::variant<InputFile::
+@@ -491,7 +491,7 @@ Message::Ptr Api::sendVideoNote(std::int64_t chatId, boost::variant<InputFile::P
      }
      if (thumb.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(thumb);
@@ -188,7 +191,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          auto thumbStr = boost::get<std::string>(thumb);
          if (!thumbStr.empty()) {
-@@ -518,7 +518,7 @@ Message::Ptr Api::sendVoice(int64_t chatId, const boost::variant<InputFile::Ptr,
+@@ -524,7 +524,7 @@ Message::Ptr Api::sendVoice(std::int64_t chatId, boost::variant<InputFile::Ptr,
      args.emplace_back("chat_id", chatId);
      if (voice.which() == 0 /* InputFile::Ptr */) {
          auto file = boost::get<InputFile::Ptr>(voice);
@@ -197,7 +200,7 @@ index 6b41947..a618a0f 100644
      } else /* std::string */ {
          args.emplace_back("voice", boost::get<std::string>(voice));
      }
-@@ -905,7 +905,7 @@ void Api::setWebhook(const string& url, const InputFile::Ptr certificate, int32_
+@@ -911,7 +911,7 @@ void Api::setWebhook(const string& url, const InputFile::Ptr certificate, std::i
          args.emplace_back("url", url);
      }
      if (certificate != nullptr) {
@@ -206,7 +209,7 @@ index 6b41947..a618a0f 100644
      }
      if (maxConnection != 40) {
          args.emplace_back("max_connections", maxConnection);
-@@ -1048,7 +1048,7 @@ bool Api::setChatPhoto(int64_t chatId, const InputFile::Ptr photo) const {
+@@ -1051,7 +1051,7 @@ bool Api::setChatPhoto(std::int64_t chatId, const InputFile::Ptr photo) const {
      vector<HttpReqArg> args;
      args.reserve(2);
      args.emplace_back("chat_id", chatId);
@@ -216,109 +219,67 @@ index 6b41947..a618a0f 100644
  }
  
 diff --git a/src/net/CurlHttpClient.cpp b/src/net/CurlHttpClient.cpp
-index 932fd68..27a2621 100644
+index ff06138..f3bf099 100644
 --- a/src/net/CurlHttpClient.cpp
 +++ b/src/net/CurlHttpClient.cpp
-@@ -37,10 +37,8 @@ CurlHttpClient::~CurlHttpClient() {
- }
- 
- static size_t curlWriteString(char* ptr, size_t size, size_t nmemb, void* userdata) {
--    std::string &s = *(std::string *)userdata;
--    auto read = size * nmemb;
--    s.append(ptr, ptr + read);
--    return read;
-+    static_cast<std::string *>(userdata)->append(ptr, size * nmemb);
-+    return size * nmemb;
- };
- 
- std::string CurlHttpClient::makeRequest(const Url& url, const std::vector<HttpReqArg>& args) const {
-@@ -56,18 +54,24 @@ std::string CurlHttpClient::makeRequest(const Url& url, const std::vector<HttpRe
-     headers = curl_slist_append(headers, "Connection: close");
-     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
- 
--    std::string data;
--    std::vector<char*> escaped;
-+    curl_mime *mime;
-+    curl_mimepart *part;
-+    mime = curl_mime_init(curl);
-     if (!args.empty()) {
+@@ -43,11 +43,14 @@ std::string CurlHttpClient::makeRequest(const Url& url, const std::vector<HttpRe
          for (const HttpReqArg& a : args) {
--            escaped.push_back(curl_easy_escape(curl, a.name.c_str(), a.name.size()));
--            data += escaped.back() + std::string("=");
--            escaped.push_back(curl_easy_escape(curl, a.value.c_str(), a.value.size()));
--            data += escaped.back() + std::string("&");
-+            part = curl_mime_addpart(mime);
-+
-+            curl_mime_type(part, a.mimeType.c_str());
-+            curl_mime_name(part, a.name.c_str());
-+            if (a.isFile) {
+             part = curl_mime_addpart(mime);
+ 
+-            curl_mime_data(part, a.value.c_str(), a.value.size());
+             curl_mime_type(part, a.mimeType.c_str());
+             curl_mime_name(part, a.name.c_str());
+             if (a.isFile) {
+-                curl_mime_filename(part, a.fileName.c_str());
 +                curl_mime_filedata(part, a.value.c_str());
 +            }
 +            else
 +            {
 +                curl_mime_data(part, a.value.c_str(), a.value.size());
-+            }
+             }
          }
--        data.resize(data.size() - 1);
--        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
--        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)data.size());
-+        curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
-     }
- 
-     std::string response;
-@@ -77,10 +81,7 @@ std::string CurlHttpClient::makeRequest(const Url& url, const std::vector<HttpRe
-     auto res = curl_easy_perform(curl);
-     curl_slist_free_all(headers);
-     curl_easy_cleanup(curl);
--
--    for (auto& e : escaped) {
--        curl_free(e);
--    }
-+    curl_mime_free(mime);
- 
-     if (res != CURLE_OK) {
-         throw std::runtime_error(std::string("curl error: ") + curl_easy_strerror(res));
+         curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 diff --git a/src/net/HttpParser.cpp b/src/net/HttpParser.cpp
-index c4f8215..ad36c4e 100644
+index 246c47c..316082c 100644
 --- a/src/net/HttpParser.cpp
 +++ b/src/net/HttpParser.cpp
-@@ -25,6 +25,7 @@
- #include <boost/algorithm/string.hpp>
+@@ -1,6 +1,7 @@
+ #include "tgbot/net/HttpParser.h"
  
  #include "tgbot/tools/StringTools.h"
 +#include "tgbot/tools/FileTools.h"
  
- using namespace std;
- using namespace boost;
-@@ -101,8 +102,11 @@ string HttpParser::generateMultipartFormData(const vector<HttpReqArg>& args, con
- string HttpParser::generateMultipartBoundary(const vector<HttpReqArg>& args) const {
+ #include <boost/algorithm/string.hpp>
+ 
+@@ -59,12 +60,15 @@ string HttpParser::generateRequest(const Url& url, const vector<HttpReqArg>& arg
+ 
+ string HttpParser::generateMultipartFormData(const vector<HttpReqArg>& args, const string& boundary) const {
      string result;
-     srand((uint32_t) time(nullptr));
 -    for (const HttpReqArg& item : args) {
 +    vector<HttpReqArg>* mutableArgs = const_cast<vector<HttpReqArg>*>(&args);
 +    for (HttpReqArg& item : *mutableArgs) {
+         result += "--";
+         result += boundary;
+         result += "\r\nContent-Disposition: form-data; name=\"";
+         result += item.name;
          if (item.isFile) {
 +            item.fileName = StringTools::split(item.value, '/').back();
 +            item.value = FileTools::read(item.value);
-             while (result.empty() || item.value.find(result) != string::npos) {
-                 result += StringTools::generateRandomString(4);
-             }
+             result += "\"; filename=\"" + item.fileName;
+         }
+         result += "\"\r\n";
 diff --git a/src/types/InputFile.cpp b/src/types/InputFile.cpp
-index 94a591b..1a46710 100644
+index c74c73e..26971fe 100644
 --- a/src/types/InputFile.cpp
 +++ b/src/types/InputFile.cpp
-@@ -4,20 +4,14 @@
- 
+@@ -1,6 +1,4 @@
  #include "tgbot/types/InputFile.h"
- 
--#include <fstream>
--
 -#include "tgbot/tools/StringTools.h"
 -#include "tgbot/tools/FileTools.h"
--
- using namespace std;
  
- namespace TgBot {
+ #include <memory>
+ #include <string>
+@@ -11,9 +9,8 @@ namespace TgBot {
  
  InputFile::Ptr InputFile::fromFile(const string& filePath, const string& mimeType) {
      auto result(make_shared<InputFile>());
@@ -329,3 +290,6 @@ index 94a591b..1a46710 100644
      return result;
  }
  
+-- 
+2.35.3
+
