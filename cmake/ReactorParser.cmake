@@ -17,11 +17,13 @@ if(NOT reactor_parser_POPULATED)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_custom_target(reactor_parser
                     COMMAND cargo build --target-dir="\"${CMAKE_BINARY_DIR}/reactor_parser\""
+                    BYPRODUCTS "${CMAKE_BINARY_DIR}/reactor_parser/debug/libreactor_parser.so"
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser")
         set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/debug/libreactor_parser.so")
     else()
         add_custom_target(reactor_parser
                     COMMAND cargo build --release --target-dir="\"${CMAKE_BINARY_DIR}/reactor_parser\""
+                    BYPRODUCTS "${CMAKE_BINARY_DIR}/reactor_parser/release/libreactor_parser.so"
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty/reactor_parser")
         set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/release/libreactor_parser.so")
     endif()
