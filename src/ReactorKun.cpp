@@ -113,7 +113,7 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
         if (std::regex_match(postNumber, numberRegex))
         {
             SpinGuard tasksGuard(_mailerTasksLock);
-            _mailerTasks.push(std::pair(chatID, "http://old.reactor.cc/post/" + postNumber));
+            _mailerTasks.push(std::pair(chatID, "https://old.reactor.cc/post/" + postNumber));
         }
         else
         {

@@ -258,7 +258,7 @@ std::string Config::generateReactorUrl(std::string_view domain, std::string_view
 {
     std::string errorMsg;
     std::string result;
-    _reactorDomain = "http://";
+    _reactorDomain = "https://";
     if (domain == "old")
     {
         _reactorDomain += "old.reactor.cc/";
