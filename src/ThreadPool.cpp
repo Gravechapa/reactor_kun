@@ -49,6 +49,7 @@ void ThreadPool::_sender()
             _threadsTasks.pop();
             tasksGuard.unlock();
             _bot._sendMessage(task.listener, task.message);
+            task.lastSend = std::chrono::high_resolution_clock::now();
         }
         else
         {
@@ -83,13 +84,13 @@ void ThreadPool::_scheduler()
                 {
                     if (!it->second.highPriority.empty())
                     {
-                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), &it->second.lastSend,
+                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend,
                                                  std::move(it->second.highPriority.front())));
                         it->second.highPriority.pop();
                     }
                     else if(!it->second.lowPriority.empty())
                     {
-                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), &it->second.lastSend,
+                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend,
                                                  std::move(it->second.lowPriority.front())));
                         it->second.lowPriority.pop();
                     }

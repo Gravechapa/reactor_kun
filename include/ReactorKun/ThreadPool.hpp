@@ -30,7 +30,7 @@ private:
     struct Task
     {
         Task(int64_t listener_, std::unique_lock<std::mutex> &&timeLock_,
-             std::chrono::high_resolution_clock::time_point *lastSend_,
+             std::chrono::high_resolution_clock::time_point &lastSend_,
              std::shared_ptr<BotMessage> &&message_) noexcept:
             listener(listener_), timeLock(std::move(timeLock_)),
             lastSend(lastSend_), message(std::move(message_)){}
@@ -41,7 +41,7 @@ private:
 
         const int64_t listener;
         std::unique_lock<std::mutex> timeLock;
-        const std::chrono::high_resolution_clock::time_point *lastSend;
+        std::chrono::high_resolution_clock::time_point &lastSend;
         std::shared_ptr<BotMessage> message;
 
     private:
