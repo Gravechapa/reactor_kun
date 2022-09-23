@@ -161,90 +161,107 @@ void ReactorKun::_onUpdate(TgBot::Message::Ptr message)
 
 void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message)
 {
-    try
+    int32_t errorCounter = 0;
+    while(true)
     {
-        PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
-              << ", to: " << listener;
-        switch (message->getType())
-        {
-            case ElementType::HEADER:
-            {
-                auto header = static_cast<PostHeaderMessage*>(message.get());
-                getApi().sendMessage(listener, "*Ссылка:* " + header->getUrl() +
-                                     "\n*Теги:* " + header->getTags(),
-                                     true, 0, nullptr, "Markdown", true);
-                break;
-            }
-            case ElementType::TEXT:
-                getApi().sendMessage(listener, static_cast<TextMessage*>(message.get())->getText(),
-                                     true, 0, nullptr, "", true);
-                break;
-            case ElementType::URL:
-                getApi().sendMessage(listener, static_cast<DataMessage*>(message.get())->getUrl(),
-                                     false, 0, nullptr, "", true);
-                break;
-            case ElementType::IMG:
-            {
-                auto img = static_cast<DataMessage*>(message.get());
-                if (!img->getFilePath().empty() && !img->getMimeType().empty())
-                {
-                    auto file = TgBot::InputFile::fromFile(img->getFilePath(),
-                                                           img->getMimeType());
-                    getApi().sendPhoto(listener,
-                                       file);
-                }
-                else
-                {
-                    getApi().sendPhoto(listener, img->getUrl(), "", 0, nullptr, "", true);
-                }
-                break;
-            }
-            case ElementType::DOCUMENT:
-            {
-                auto doc = static_cast<DataMessage*>(message.get());
-                if (!doc->getFilePath().empty() && !doc->getMimeType().empty())
-                {
-                    auto file = TgBot::InputFile::fromFile(doc->getFilePath(),
-                                                           doc->getMimeType());
-                    getApi().sendDocument(listener,
-                                          file);
-                }
-                else
-                {
-                    getApi().sendDocument(listener, doc->getUrl(), "", "", 0, nullptr, "", true);
-                }
-                break;
-            }
-            case ElementType::CENSORSHIP:
-            {
-                auto file = TgBot::InputFile::fromFile("censorship.jpg",
-                                                       "image/jpeg");
-                getApi().sendPhoto(listener, file);
-                break;
-            }
-            case ElementType::FOOTER:
-                auto footer = static_cast<PostFooterMessage*>(message.get());
-                getApi().sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",
-                                     true, 0, nullptr, "Markdown", false);
-                break;
-        }
-    }
-    catch (std::exception &e)
-    {
-        PLOGW << e.what();
         try
         {
-            if (message->getType() == ElementType::IMG || message->getType() ==ElementType::DOCUMENT)
+            PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
+                  << ", to: " << listener;
+            switch (message->getType())
             {
-                getApi().sendMessage(listener,"Не могу отправить: " +
-                                     static_cast<DataMessage*>(message.get())->getUrl(),
-                                     false, 0, nullptr, "", true);
+                case ElementType::HEADER:
+                {
+                    auto header = static_cast<PostHeaderMessage*>(message.get());
+                    getApi().sendMessage(listener, "*Ссылка:* " + header->getUrl() +
+                                         "\n*Теги:* " + header->getTags(),
+                                         true, 0, nullptr, "Markdown", true);
+                    break;
+                }
+                case ElementType::TEXT:
+                    getApi().sendMessage(listener, static_cast<TextMessage*>(message.get())->getText(),
+                                         true, 0, nullptr, "", true);
+                    break;
+                case ElementType::URL:
+                    getApi().sendMessage(listener, static_cast<DataMessage*>(message.get())->getUrl(),
+                                         false, 0, nullptr, "", true);
+                    break;
+                case ElementType::IMG:
+                {
+                    auto img = static_cast<DataMessage*>(message.get());
+                    if (!img->getFilePath().empty() && !img->getMimeType().empty())
+                    {
+                        auto file = TgBot::InputFile::fromFile(img->getFilePath(),
+                                                               img->getMimeType());
+                        getApi().sendPhoto(listener,
+                                           file);
+                    }
+                    else
+                    {
+                        getApi().sendPhoto(listener, img->getUrl(), "", 0, nullptr, "", true);
+                    }
+                    break;
+                }
+                case ElementType::DOCUMENT:
+                {
+                    auto doc = static_cast<DataMessage*>(message.get());
+                    if (!doc->getFilePath().empty() && !doc->getMimeType().empty())
+                    {
+                        auto file = TgBot::InputFile::fromFile(doc->getFilePath(),
+                                                               doc->getMimeType());
+                        getApi().sendDocument(listener,
+                                              file);
+                    }
+                    else
+                    {
+                        getApi().sendDocument(listener, doc->getUrl(), "", "", 0, nullptr, "", true);
+                    }
+                    break;
+                }
+                case ElementType::CENSORSHIP:
+                {
+                    auto file = TgBot::InputFile::fromFile("censorship.jpg",
+                                                           "image/jpeg");
+                    getApi().sendPhoto(listener, file);
+                    break;
+                }
+                case ElementType::FOOTER:
+                    auto footer = static_cast<PostFooterMessage*>(message.get());
+                    getApi().sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",
+                                         true, 0, nullptr, "Markdown", false);
+                    break;
+            }
+        }
+        catch (TgBot::TgException &e)
+        {
+            PLOGW << e.what();
+            try
+            {
+                if (message->getType() == ElementType::IMG || message->getType() ==ElementType::DOCUMENT)
+                {
+                    getApi().sendMessage(listener,"Не могу отправить: " +
+                                         static_cast<DataMessage*>(message.get())->getUrl(),
+                                         false, 0, nullptr, "", true);
+                }
+            }
+            catch (std::exception &e)
+            {
+                PLOGE << e.what();
             }
         }
         catch (std::exception &e)
         {
+            using namespace std::literals;
+            if (std::string_view(e.what()).find("curl error:") != ""sv.npos
+                && ++errorCounter <= 10)
+            {
+                PLOGW << e.what() << " Retrying: " << errorCounter;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
             PLOGE << e.what();
         }
+        break;
     }
 }
 
