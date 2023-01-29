@@ -1,7 +1,7 @@
 #include "BotMessage.hpp"
 #include "Parser.hpp"
 #include "TgLimits.hpp"
-#include <tgbot/tools/StringTools.h>
+#include "AuxiliaryFunctions.hpp"
 #include "FileManager.hpp"
 #include "AuxiliaryFunctions.hpp"
 #include "Signature.hpp"
@@ -53,7 +53,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
 
         auto pos = _url.rfind("/");
         _fileName = _url.substr(pos + 1);
-        _url = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+        _url = _url.substr(0, pos + 1) + urlEncode(_fileName);
 
         ContentInfo info = Parser::getContentInfo(_url);
 
@@ -126,6 +126,10 @@ const std::string& DataMessage::getUrl() const
 
 const std::string DataMessage::getFilePath() const
 {
+    if (_fileName.empty())
+    {
+        return "";
+    }
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 

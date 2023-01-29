@@ -3,6 +3,7 @@
 #include <utf8_string.hpp>
 #include "TgLimits.hpp"
 #include <plog/Log.h>
+#include <iomanip>
 
 #define readbyte(a,b) do if(((a) = (b).get()) == EOF) return Dimension(); while (0)
 #define readword(a,b) do {int32_t cc_= 0, dd_ = 0; \
@@ -118,4 +119,42 @@ void configCurlProxy(CURL *curl, std::string_view address, std::string_view useP
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANYSAFE);
             curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, usePwd.data());
     }
+}
+
+std::string urlDecode(const std::string& value)
+{
+    std::string result;
+    for (std::size_t i = 0, count = value.length(); i < count; ++i)
+    {
+        const char c = value[i];
+        if (c == '%')
+        {
+            int t = stoi(value.substr(i + 1, 2), nullptr, 16);
+            result += static_cast<char>(t);
+            i += 2;
+        }
+        else
+        {
+            result += c;
+        }
+    }
+    return result;
+}
+
+std::string urlEncode(const std::string& value, const std::string& additionalLegitChars)
+{
+    static const std::string legitPunctuation = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~:";
+    std::stringstream ss;
+    for (auto const &c : value)
+    {
+        if ((legitPunctuation.find(c) == std::string::npos) && (additionalLegitChars.find(c) == std::string::npos))
+        {
+            ss << '%' << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << (unsigned int)(unsigned char)c;
+        }
+        else
+        {
+            ss << c;
+        }
+    }
+    return ss.str();
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <mutex>
-#include <tgbot/tgbot.h>
+#include <thread>
+#include <map>
 #include "BotDB.hpp"
 
 class ReactorKun;

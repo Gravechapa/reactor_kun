@@ -1,5 +1,11 @@
 {
-    "token": "567849458:AAEKzW0s2coYr3chl7koEoil1NSHepgNyMs",
+    "apiId": "Application identifier for Telegram API access, which can be obtained at https://my.telegram.org.",
+    "apiId": 12345678,
+    
+    "apiHash": "Application identifier hash for Telegram API access, which can be obtained at https://my.telegram.org.",
+    "apiHash": "1234567890abcdef17192123252729312",
+    
+    "token": "123456789:AABBCcDDE_FfGg0hhIi1JjkK2L3mm-NNOop",
     "superUserName": "Gravechapa",
 
     "domain": "old or new",
@@ -25,6 +31,7 @@
     "proxy": {
         "enableForReactor": true,
         "enableForTelegram": true,
+        "type": "http, https, socks5",
         "type": "socks5",
         "address": "127.0.0.1",
         "port": 9050,
