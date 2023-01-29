@@ -291,8 +291,6 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
 {
     switch (update->get_id())
     {
-    case td_api::updateSelectedBackground::ID:
-        break;
     case td_api::updateOption::ID: {
         auto option = td_api::move_object_as<td_api::updateOption>(update);
         if (option->name_ == "my_id")
@@ -338,7 +336,7 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
         break;
     }
     default:
-        PLOGW << "There is no update handler for object:\n" << td_api::to_string(update);
+        break;
     }
 }
 
