@@ -299,7 +299,7 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
     {
     case td::td_api::updateFile::ID: {
         auto updateFile = td_api::move_object_as<td_api::updateFile>(update);
-        if (updateFile->file_->remote_->is_uploading_completed_)
+        if (!updateFile->file_->remote_->is_uploading_active_)
         {
             std::lock_guard lock(_fUpdateLock);
             _filesUpdates.push(updateFile->file_->id_);

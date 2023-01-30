@@ -308,6 +308,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
           << ", to: " << listener;
     std::optional<td_api::object_ptr<td_api::message>> response;
+    std::unique_lock flock(_fileUpdateLock, std::defer_lock);
     switch (message->getType())
     {
     case ElementType::HEADER: {
@@ -326,18 +327,14 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                                        TextType::Plain, false, true);
         break;
     case ElementType::IMG:
-    {
         response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, true);
         break;
-    }
     case ElementType::DOCUMENT:
-    {
+        flock.lock();
         response = _client.sendDocument(listener, prepareFile(message.get()),
                                         nullptr, "", TextType::Plain, false, true);
         break;
-    }
-    case ElementType::CENSORSHIP:
-    {
+    case ElementType::CENSORSHIP: {
         auto file = td_api::make_object<td_api::inputFileLocal>("censorship.jpg");
         response = _client.sendPhoto(listener, std::move(file), "", TextType::Plain, true);
         break;
@@ -350,6 +347,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     }
     if (!response)
     {
+        flock.unlock();
         if (message->getType() == ElementType::IMG || message->getType() == ElementType::DOCUMENT)
         {
             _client.sendMessage(listener, "Не могу отправить: " +
@@ -365,7 +363,6 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
             return false;
         }
         auto fileId = doc->document_->document_->id_;
-        std::lock_guard lock(_fileUpdateLock);
         _filesTable[fileId].push_back(listener);
         return true;
     }
