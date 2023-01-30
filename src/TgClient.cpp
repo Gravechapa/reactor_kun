@@ -90,6 +90,12 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::getUpdate()
     return std::nullopt;
 }
 
+std::queue<int32_t> TgClient::getFilesUpdates()
+{
+    std::lock_guard lock(_fUpdateLock);
+    return std::move(_filesUpdates);
+}
+
 std::optional<td_api::object_ptr<td_api::user>> TgClient::getMe()
 {
     auto response = _sendWhenReady(td_api::make_object<td_api::getMe>());
@@ -291,6 +297,15 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
 {
     switch (update->get_id())
     {
+    case td::td_api::updateFile::ID: {
+        auto updateFile = td_api::move_object_as<td_api::updateFile>(update);
+        if (updateFile->file_->remote_->is_uploading_completed_)
+        {
+            std::lock_guard lock(_fUpdateLock);
+            _filesUpdates.push(updateFile->file_->id_);
+        }
+        break;
+    }
     case td_api::updateOption::ID: {
         auto option = td_api::move_object_as<td_api::updateOption>(update);
         if (option->name_ == "my_id")

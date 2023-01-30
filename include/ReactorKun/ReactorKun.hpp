@@ -14,9 +14,10 @@ public:
 private:
     friend ThreadPool;
 
-    void _sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message);
+    bool _sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message);
 
     void _onUpdate(td_api::object_ptr<td_api::message> &message);
+    void _onFileUpdate(std::stop_token stoken);
     [[noreturn]] void _mailerHandler();
     void _trim(std::string &string);
 
@@ -24,6 +25,9 @@ private:
     const std::chrono::minutes _mailerUpdateDelay{5};
 
     TgClient _client;
+    std::mutex _fileUpdateLock;
+    std::map<int32_t, std::vector<int64_t>> _filesTable;
+    std::jthread _fileUpdateChecker;
     ThreadPool _threadPool{*this};
     std::atomic_flag _mailerTasksLock = ATOMIC_FLAG_INIT;
     std::queue<std::pair<int64_t, std::string>> _mailerTasks;

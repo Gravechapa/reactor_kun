@@ -5,6 +5,7 @@
 #include <plog/Log.h>
 #include "AuxiliaryFunctions.hpp"
 #include <csignal>
+#include <functional>
 
 static std::atomic_bool _stop{false};
 
@@ -47,6 +48,7 @@ ReactorKun::ReactorKun(Config &config):
     {
         _client.getChat(listener);
     }
+    _fileUpdateChecker = std::jthread(std::bind_front(&ReactorKun::_onFileUpdate, this));
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -54,6 +56,7 @@ ReactorKun::~ReactorKun()
 {
     _mailer.interrupt();
     if(_mailer.joinable()){_mailer.join();}
+    _fileUpdateChecker.request_stop();
 }
 
 void ReactorKun::run()
@@ -166,8 +169,6 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     }
     }
 
-
-
     PLOGD << "Incoming msg: " << chatId << ", " << username << ", " << firstName << ", " << text;
     if (text == addCMD)
     {
@@ -259,6 +260,34 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     }
 }
 
+void ReactorKun::_onFileUpdate(std::stop_token stoken)
+{
+    using namespace std::chrono_literals;
+    while (!stoken.stop_requested())
+    {
+        auto updates = _client.getFilesUpdates();
+        if (updates.empty())
+        {
+            std::this_thread::sleep_for(16ms);
+            continue;
+        }
+        std::lock_guard lock(_fileUpdateLock);
+        while (!updates.empty())
+        {
+            auto it = _filesTable.find(updates.front());
+            if (it != _filesTable.end())
+            {
+                for (auto listener : it->second)
+                {
+                    _threadPool.uploadFinished(listener);
+                }
+                _filesTable.erase(it);
+            }
+            updates.pop();
+        }
+    }
+}
+
 auto prepareFile(BotMessage const* msg)
 {
     auto data = static_cast<DataMessage const*>(msg);
@@ -274,7 +303,7 @@ auto prepareFile(BotMessage const* msg)
     return file;
 }
 
-void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message)
+bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &message)
 {
     PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
           << ", to: " << listener;
@@ -321,13 +350,26 @@ void ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     }
     if (!response)
     {
-        if (message->getType() == ElementType::IMG || message->getType() ==ElementType::DOCUMENT)
+        if (message->getType() == ElementType::IMG || message->getType() == ElementType::DOCUMENT)
         {
             _client.sendMessage(listener, "Не могу отправить: " +
                                 static_cast<DataMessage*>(message.get())->getUrl(),
                                                    TextType::Plain, false, true);
         }
     }
+    else if (response.value()->content_->get_id() == td_api::messageDocument::ID)
+    {
+        auto doc = td::td_api::move_object_as<td_api::messageDocument>(response.value()->content_);
+        if(doc->document_->document_->remote_->is_uploading_completed_)
+        {
+            return false;
+        }
+        auto fileId = doc->document_->document_->id_;
+        std::lock_guard lock(_fileUpdateLock);
+        _filesTable[fileId].push_back(listener);
+        return true;
+    }
+    return false;
 }
 
 void ReactorKun::_mailerHandler()

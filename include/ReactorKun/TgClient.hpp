@@ -28,6 +28,7 @@ class TgClient
     TgClient &operator=(const TgClient &) = delete;
 
     std::optional<td_api::object_ptr<td_api::message>> getUpdate();
+    std::queue<int32_t> getFilesUpdates();
     std::optional<td_api::object_ptr<td_api::user>> getMe();
     std::optional<td_api::object_ptr<td_api::chat>> getChat(td_api::int53 chatId);
     std::optional<td_api::object_ptr<td_api::user>> getUser(td_api::int53 userId);
@@ -80,4 +81,6 @@ class TgClient
     std::map<uint64_t, std::promise<td_api::object_ptr<td_api::Object>>> _requests;
     std::mutex _updateLock;
     std::queue<td_api::object_ptr<td_api::message>> _updates;
+    std::mutex _fUpdateLock;
+    std::queue<int32_t> _filesUpdates;
 };

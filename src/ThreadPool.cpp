@@ -48,7 +48,7 @@ void ThreadPool::_sender()
             Task task(std::move(_threadsTasks.front()));
             _threadsTasks.pop();
             tasksGuard.unlock();
-            _bot._sendMessage(task.listener, task.message);
+            task.uploadLock = _bot._sendMessage(task.listener, task.message);
             task.lastSend = std::chrono::high_resolution_clock::now();
         }
         else
@@ -70,31 +70,35 @@ void ThreadPool::_scheduler()
         for(auto it = _scheduleMap.begin(); it != _scheduleMap.end();)
         {
             std::unique_lock timeGuard(it->second.timeLock, std::try_to_lock);
-            if (timeGuard.owns_lock())
+            if (!timeGuard.owns_lock() ||
+                std::chrono::high_resolution_clock::now() - it->second.lastSend <=
+                                        std::chrono::seconds(60 / TgLimits::maxMessagePerGroupPerMin))
             {
-                if (it->second.highPriority.empty() && it->second.lowPriority.empty())
+                ++it;
+                continue;
+            }
+            if (!it->second.highPriority.empty())
+            {
+
+                tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend, it->second.uploadLock,
+                                         std::move(it->second.highPriority.front())));
+                it->second.highPriority.pop();
+            }
+            else if(!it->second.lowPriority.empty())
+            {
+                if (!it->second.uploadLock)
                 {
-                    timeGuard.unlock();
-                    timeGuard.release();
-                    it = _scheduleMap.erase(it);
-                    continue;
+                    tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend, it->second.uploadLock,
+                                             std::move(it->second.lowPriority.front())));
+                    it->second.lowPriority.pop();
                 }
-                if (std::chrono::high_resolution_clock::now() - it->second.lastSend >
-                        std::chrono::seconds(60 / TgLimits::maxMessagePerGroupPerMin))
-                {
-                    if (!it->second.highPriority.empty())
-                    {
-                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend,
-                                                 std::move(it->second.highPriority.front())));
-                        it->second.highPriority.pop();
-                    }
-                    else if(!it->second.lowPriority.empty())
-                    {
-                        tasksBuffer.emplace(Task(it->first, std::move(timeGuard), it->second.lastSend,
-                                                 std::move(it->second.lowPriority.front())));
-                        it->second.lowPriority.pop();
-                    }
-                }
+            }
+            else
+            {
+                timeGuard.unlock();
+                timeGuard.release();
+                it = _scheduleMap.erase(it);
+                continue;
             }
             ++it;
         }
@@ -108,7 +112,6 @@ void ThreadPool::_scheduler()
                 tasksBuffer.pop();
             }
         }
-
         wait(_schedulerDelay, timePoint);
     }
 }
@@ -151,4 +154,10 @@ void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view
     {
         _scheduleMap[listener].highPriority.push(sharedMsg);
     }
+}
+
+void ThreadPool::uploadFinished(int64_t listener)
+{
+    SpinGuard scheduleGuard(_scheduleLock);
+    _scheduleMap.at(listener).uploadLock = false;
 }

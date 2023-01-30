@@ -17,12 +17,14 @@ public:
                         std::queue<std::shared_ptr<BotMessage>> &posts);
     void addTextToSend(std::vector<int64_t> &&listeners, std::string_view text);
     void addImgToSend(std::vector<int64_t> &&listeners, std::string_view url);
+    void uploadFinished(int64_t listener);
 
 private:
     struct SendingQueue
     {
         std::mutex timeLock;
         std::chrono::high_resolution_clock::time_point lastSend;
+        bool uploadLock{false};
 
         std::queue<std::shared_ptr<BotMessage>> lowPriority;
         std::queue<std::shared_ptr<BotMessage>> highPriority;
@@ -32,17 +34,19 @@ private:
     {
         Task(int64_t listener_, std::unique_lock<std::mutex> &&timeLock_,
              std::chrono::high_resolution_clock::time_point &lastSend_,
-             std::shared_ptr<BotMessage> &&message_) noexcept:
+             bool &uploadLock_, std::shared_ptr<BotMessage> &&message_) noexcept:
             listener(listener_), timeLock(std::move(timeLock_)),
-            lastSend(lastSend_), message(std::move(message_)){}
+            lastSend(lastSend_), uploadLock(uploadLock_), message(std::move(message_)){}
 
         Task(Task&& source) noexcept:
         listener(source.listener), timeLock(std::move(source.timeLock)),
-        lastSend(source.lastSend), message(std::move(source.message)){}
+        lastSend(source.lastSend), uploadLock(source.uploadLock),
+        message(std::move(source.message)){}
 
         const int64_t listener;
         std::unique_lock<std::mutex> timeLock;
         std::chrono::high_resolution_clock::time_point &lastSend;
+        bool &uploadLock;
         std::shared_ptr<BotMessage> message;
 
     private:
