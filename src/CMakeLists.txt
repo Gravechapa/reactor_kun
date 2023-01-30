@@ -5,6 +5,8 @@ add_library(reactor_kun_core ${SOURCE_LIST} ${HEADER_LIST} ${UTF8_STRING_SOURCE}
 
 target_include_directories(reactor_kun_core PUBLIC ../include/ReactorKun)
 
+target_precompile_headers(reactor_kun_core PUBLIC ${HEADER_LIST})
+
 add_dependencies(reactor_kun_core reactor_parser)
 
 find_package(Threads REQUIRED)
