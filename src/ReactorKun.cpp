@@ -48,7 +48,7 @@ ReactorKun::ReactorKun(Config &config):
     {
         _client.getChat(listener);
     }
-    _fileUpdateChecker = std::jthread(std::bind_front(&ReactorKun::_onFileUpdate, this));
+    _messageStatusChecker = std::jthread(std::bind_front(&ReactorKun::_onMessageStatusUpdate, this));
     _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
 }
 
@@ -56,12 +56,10 @@ ReactorKun::~ReactorKun()
 {
     _mailer.interrupt();
     if(_mailer.joinable()){_mailer.join();}
-    _fileUpdateChecker.request_stop();
 }
 
 void ReactorKun::run()
 {
-    using namespace std::chrono_literals;
     while (!_stop)
     {
         auto message = _client.getUpdate();
@@ -71,7 +69,7 @@ void ReactorKun::run()
         }
         else
         {
-            std::this_thread::sleep_for(16ms);
+            std::this_thread::sleep_for(_updateDelay);
         }
     }
 }
@@ -260,28 +258,42 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     }
 }
 
-void ReactorKun::_onFileUpdate(std::stop_token stoken)
+void ReactorKun::_onMessageStatusUpdate(std::stop_token stoken)
 {
     using namespace std::chrono_literals;
     while (!stoken.stop_requested())
     {
-        auto updates = _client.getFilesUpdates();
+        auto updates = _client.getMessagesStatusesUpdates();
         if (updates.empty())
         {
-            std::this_thread::sleep_for(16ms);
+            std::this_thread::sleep_for(_messageStatusCheckerDelay);
             continue;
         }
-        std::lock_guard lock(_fileUpdateLock);
+        std::lock_guard lock(_messagesCacheLock);
         while (!updates.empty())
         {
-            auto it = _filesTable.find(updates.front());
-            if (it != _filesTable.end())
+            auto it = _sentMessagesCache.find(updates.front().chatId);
+            if (it != _sentMessagesCache.end() && it->second == updates.front().messageId)
             {
-                for (auto listener : it->second)
+                if (updates.front().error)
                 {
-                    _threadPool.uploadFinished(listener);
+                    auto &error = updates.front().error.value();
+                    PLOGW << "Message send failed: " << error.code << " " << error.message;
+                    if (error.code == 429 || error.message.starts_with("Too Many Requests: retry after"))
+                    {
+                        auto wait = std::atoi(error.message.substr(error.message.rfind(" ") + 1).c_str());
+                        _threadPool.setStatus(updates.front().chatId, ThreadPool::Status::Error, wait);
+                    }
+                    else
+                    {
+                        _threadPool.setStatus(updates.front().chatId, ThreadPool::Status::FatalError);
+                    }
                 }
-                _filesTable.erase(it);
+                else
+                {
+                    _threadPool.setStatus(updates.front().chatId, ThreadPool::Status::Success);
+                }
+                _sentMessagesCache.erase(it);
             }
             updates.pop();
         }
@@ -308,7 +320,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     PLOGD << "Sending msg, type: " << static_cast<int32_t>(message->getType())
           << ", to: " << listener;
     std::optional<td_api::object_ptr<td_api::message>> response;
-    std::unique_lock flock(_fileUpdateLock, std::defer_lock);
+    std::lock_guard lock(_messagesCacheLock);
     switch (message->getType())
     {
     case ElementType::HEADER: {
@@ -330,7 +342,6 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, true);
         break;
     case ElementType::DOCUMENT:
-        flock.lock();
         response = _client.sendDocument(listener, prepareFile(message.get()),
                                         nullptr, "", TextType::Plain, false, true);
         break;
@@ -339,34 +350,25 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         response = _client.sendPhoto(listener, std::move(file), "", TextType::Plain, true);
         break;
     }
-    case ElementType::FOOTER:
+    case ElementType::FOOTER: {
         auto footer = static_cast<PostFooterMessage*>(message.get());
         response = _client.sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",
                                        TextType::Markdown, true);
         break;
     }
-    if (!response)
+    case ElementType::Error:
     {
-        flock.unlock();
-        if (message->getType() == ElementType::IMG || message->getType() == ElementType::DOCUMENT)
-        {
-            _client.sendMessage(listener, "Не могу отправить: " +
-                                static_cast<DataMessage*>(message.get())->getUrl(),
-                                                   TextType::Plain, false, true);
-        }
+        response = _client.sendMessage(listener, "Критическая ошибка⚀, не удалось отправить сообщение.",
+                                       TextType::Plain, true, true);
+        break;
     }
-    else if (response.value()->content_->get_id() == td_api::messageDocument::ID)
+    }
+    if (response)
     {
-        auto doc = td::td_api::move_object_as<td_api::messageDocument>(response.value()->content_);
-        if(doc->document_->document_->remote_->is_uploading_completed_)
-        {
-            return false;
-        }
-        auto fileId = doc->document_->document_->id_;
-        _filesTable[fileId].push_back(listener);
+        _sentMessagesCache.insert({listener, response.value()->id_});
         return true;
     }
-    return false;
+    return true; //I don't know in what cases it might be useful. So for now, the function always returns true.
 }
 
 void ReactorKun::_mailerHandler()

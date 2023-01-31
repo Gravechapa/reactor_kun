@@ -22,13 +22,26 @@ enum class TextType
 class TgClient
 {
   public:
+    struct Error
+    {
+        Error(int32_t code_, std::string message_) : code(code_), message(message_){};
+        const int32_t code;
+        const std::string message;
+    };
+    struct MessageStatus
+    {
+        const td_api::int53 messageId;
+        const td_api::int53 chatId;
+        const std::optional<Error> error;
+    };
+
     TgClient(int32_t apiId, std::string_view apiHash, std::string_view token);
     ~TgClient();
     TgClient(const TgClient &) = delete;
     TgClient &operator=(const TgClient &) = delete;
 
     std::optional<td_api::object_ptr<td_api::message>> getUpdate();
-    std::queue<int32_t> getFilesUpdates();
+    std::queue<MessageStatus> getMessagesStatusesUpdates();
     std::optional<td_api::object_ptr<td_api::user>> getMe();
     std::optional<td_api::object_ptr<td_api::chat>> getChat(td_api::int53 chatId);
     std::optional<td_api::object_ptr<td_api::user>> getUser(td_api::int53 userId);
@@ -81,6 +94,6 @@ class TgClient
     std::map<uint64_t, std::promise<td_api::object_ptr<td_api::Object>>> _requests;
     std::mutex _updateLock;
     std::queue<td_api::object_ptr<td_api::message>> _updates;
-    std::mutex _fUpdateLock;
-    std::queue<int32_t> _filesUpdates;
+    std::mutex _mUpdateLock;
+    std::queue<MessageStatus> _messagesStatusesUpdates;
 };

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16...3.23)
 
-project(ReactorKun VERSION 1.1
+project(ReactorKun VERSION 2.0
                     DESCRIPTION "Joyreactor bot"
                     LANGUAGES CXX)
 

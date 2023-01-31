@@ -90,10 +90,10 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::getUpdate()
     return std::nullopt;
 }
 
-std::queue<int32_t> TgClient::getFilesUpdates()
+std::queue<TgClient::MessageStatus> TgClient::getMessagesStatusesUpdates()
 {
-    std::lock_guard lock(_fUpdateLock);
-    return std::move(_filesUpdates);
+    std::lock_guard lock(_mUpdateLock);
+    return std::move(_messagesStatusesUpdates);
 }
 
 std::optional<td_api::object_ptr<td_api::user>> TgClient::getMe()
@@ -297,15 +297,6 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
 {
     switch (update->get_id())
     {
-    case td::td_api::updateFile::ID: {
-        auto updateFile = td_api::move_object_as<td_api::updateFile>(update);
-        if (!updateFile->file_->remote_->is_uploading_active_)
-        {
-            std::lock_guard lock(_fUpdateLock);
-            _filesUpdates.push(updateFile->file_->id_);
-        }
-        break;
-    }
     case td_api::updateOption::ID: {
         auto option = td_api::move_object_as<td_api::updateOption>(update);
         if (option->name_ == "my_id")
@@ -318,6 +309,21 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
             }
         }
         PLOGD << option->name_ << ": " << td_api::to_string(option->value_);
+        break;
+    }
+    case td_api::updateMessageSendSucceeded::ID: {
+        auto success = td_api::move_object_as<td_api::updateMessageSendSucceeded>(update);
+        std::lock_guard lock(_mUpdateLock);
+        TgClient::MessageStatus ms = {success->old_message_id_, success->message_->chat_id_, std::nullopt};
+        _messagesStatusesUpdates.emplace(std::move(ms));
+        break;
+    }
+    case td_api::updateMessageSendFailed::ID: {
+        auto fail = td_api::move_object_as<td_api::updateMessageSendFailed>(update);
+        std::lock_guard lock(_mUpdateLock);
+        TgClient::MessageStatus ms = {fail->old_message_id_, fail->message_->chat_id_,
+                                      std::optional<TgClient::Error>(Error(fail->error_code_, fail->error_message_))};
+        _messagesStatusesUpdates.emplace(std::move(ms));
         break;
     }
     case td_api::updateConnectionState::ID:

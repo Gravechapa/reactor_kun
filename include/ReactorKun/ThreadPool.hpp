@@ -2,12 +2,20 @@
 #include <mutex>
 #include <thread>
 #include <map>
-#include "BotDB.hpp"
+#include "BotMessage.hpp"
 
 class ReactorKun;
 class ThreadPool
 {
 public:
+    enum class Status
+    {
+        Pending,
+        Success,
+        Error,
+        FatalError
+    };
+
     ThreadPool(ReactorKun &bot);
     ~ThreadPool();
 
@@ -17,14 +25,16 @@ public:
                         std::queue<std::shared_ptr<BotMessage>> &posts);
     void addTextToSend(std::vector<int64_t> &&listeners, std::string_view text);
     void addImgToSend(std::vector<int64_t> &&listeners, std::string_view url);
-    void uploadFinished(int64_t listener);
+    void setStatus(int64_t listener, Status status, int32_t wait = 30);
 
 private:
+
     struct SendingQueue
     {
         std::mutex timeLock;
         std::chrono::high_resolution_clock::time_point lastSend;
-        bool uploadLock{false};
+        Status status{Status::Error};
+        bool lastMessageHighPriority;
 
         std::queue<std::shared_ptr<BotMessage>> lowPriority;
         std::queue<std::shared_ptr<BotMessage>> highPriority;
@@ -34,20 +44,20 @@ private:
     {
         Task(int64_t listener_, std::unique_lock<std::mutex> &&timeLock_,
              std::chrono::high_resolution_clock::time_point &lastSend_,
-             bool &uploadLock_, std::shared_ptr<BotMessage> &&message_) noexcept:
+             Status &status_, std::shared_ptr<BotMessage> &message_) noexcept:
             listener(listener_), timeLock(std::move(timeLock_)),
-            lastSend(lastSend_), uploadLock(uploadLock_), message(std::move(message_)){}
+            lastSend(lastSend_), status(status_), message(message_){}
 
         Task(Task&& source) noexcept:
         listener(source.listener), timeLock(std::move(source.timeLock)),
-        lastSend(source.lastSend), uploadLock(source.uploadLock),
-        message(std::move(source.message)){}
+        lastSend(source.lastSend), status(source.status),
+        message(source.message){}
 
         const int64_t listener;
         std::unique_lock<std::mutex> timeLock;
         std::chrono::high_resolution_clock::time_point &lastSend;
-        bool &uploadLock;
-        std::shared_ptr<BotMessage> message;
+        Status &status;
+        std::shared_ptr<BotMessage> &message;
 
     private:
         Task(const Task&) = delete;

@@ -11,7 +11,8 @@ enum class ElementType: int32_t
     URL,
     CENSORSHIP,
     HEADER,
-    FOOTER
+    FOOTER,
+    Error
 };
 
 class BotMessage
