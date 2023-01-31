@@ -110,8 +110,7 @@ std::queue<std::shared_ptr<BotMessage>> Parser::getPostByURL(std::string_view li
 
     if (!post.empty())
     {
-        auto header = static_cast<PostHeaderMessage*>(post.front().get());
-        post.emplace(new PostFooterMessage(header->getTags()));
+        post.emplace(new PostFooterMessage(post.front()->getTags()));
     }
 
     curl_easy_cleanup(curl);

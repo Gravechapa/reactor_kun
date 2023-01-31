@@ -19,6 +19,11 @@ class BotMessage
 {
 public:
     ElementType getType() const;
+    virtual std::string_view getText() const;
+    virtual std::string_view getUrl() const;
+    virtual std::string getFilePath() const;
+    virtual std::string_view getTags() const;
+    virtual std::string_view getSignature() const;
 
 protected:
     BotMessage(ElementType type);
@@ -29,7 +34,7 @@ class TextMessage: public BotMessage
 {
 public:
     TextMessage(std::string_view text);
-    const std::string& getText() const;
+    std::string_view getText() const override;
 
 private:
     std::string _text;
@@ -41,10 +46,8 @@ public:
     DataMessage(ElementType type, std::string_view url);
     ~DataMessage();
 
-    ElementType getType() const;
-    const std::string& getUrl() const;
-    const std::string getFilePath() const;
-    const std::string& getMimeType() const;
+    std::string_view getUrl() const override;
+    std::string getFilePath() const override;
 
     static void isDownloadingEnable(bool flag);
 
@@ -53,7 +56,6 @@ private:
 
     std::string _url;
     std::string _fileName{""};
-    std::string _mimeType{""};
 
     DataMessage(const DataMessage&) = delete;
     const DataMessage& operator=(const DataMessage&) = delete;
@@ -67,8 +69,8 @@ public:
     PostHeaderMessage(PostHeaderMessage&& source) noexcept;
     PostHeaderMessage& operator=(PostHeaderMessage&& source) noexcept;
 
-    const std::string& getUrl() const;
-    const std::string& getTags() const;
+    std::string_view getUrl() const override;
+    std::string_view getTags() const override;
 
 private:
     std::string _url{""};
@@ -81,8 +83,8 @@ private:
 class PostFooterMessage: public BotMessage
 {
 public:
-    PostFooterMessage(const std::string &tags);
-    std::string_view getSignature() const;
+    PostFooterMessage(std::string_view tags);
+    std::string_view getSignature() const override;
 
 private:
     std::string_view _signature;

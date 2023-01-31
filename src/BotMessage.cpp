@@ -24,11 +24,32 @@ BotMessage::BotMessage(ElementType type): _type(type)
 {
 }
 
+std::string_view BotMessage::getText() const
+{
+    return "";
+}
+std::string_view BotMessage::getUrl() const
+{
+    return "";
+}
+std::string BotMessage::getFilePath() const
+{
+    return "";
+}
+std::string_view BotMessage::getTags() const
+{
+    return "";
+}
+std::string_view BotMessage::getSignature() const
+{
+    return "";
+}
+
 TextMessage::TextMessage(std::string_view text): BotMessage(ElementType::TEXT), _text(text)
 {
 }
 
-const std::string& TextMessage::getText() const
+std::string_view TextMessage::getText() const
 {
     return _text;
 }
@@ -89,7 +110,6 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
             while((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY);
             if (status == FileStatus::READY)
             {
-                _mimeType = info.type;
                 if (_type == ElementType::IMG)
                 {
                     auto res = getJpegResolution(getFilePath());
@@ -114,28 +134,18 @@ DataMessage::~DataMessage()
     }
 }
 
-ElementType DataMessage::getType() const
-{
-    return _type;
-}
-
-const std::string& DataMessage::getUrl() const
+std::string_view DataMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string DataMessage::getFilePath() const
+std::string DataMessage::getFilePath() const
 {
     if (_fileName.empty())
     {
         return "";
     }
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
-}
-
-const std::string& DataMessage::getMimeType() const
-{
-    return _mimeType;
 }
 
 PostHeaderMessage::PostHeaderMessage(): BotMessage(ElementType::HEADER)
@@ -160,22 +170,22 @@ PostHeaderMessage& PostHeaderMessage::operator=(PostHeaderMessage&& source) noex
     return *this;
 }
 
-const std::string& PostHeaderMessage::getUrl() const
+std::string_view PostHeaderMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string& PostHeaderMessage::getTags() const
+std::string_view PostHeaderMessage::getTags() const
 {
     return _tags;
 }
 
-PostFooterMessage::PostFooterMessage(const std::string &tags): BotMessage(ElementType::FOOTER)
+PostFooterMessage::PostFooterMessage(std::string_view tags): BotMessage(ElementType::FOOTER)
 {
     const static std::regex reg(R"(^.*(вирус|война|war|virus).*$)");
     static Signature sig;
 
-    if (std::regex_match(tags, reg))
+    if (std::regex_match(tags.data(), reg))
     {
         _signature = sig.get_end();
     }

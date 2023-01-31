@@ -97,14 +97,16 @@ void ThreadPool::_scheduler()
                 }
                 break;
             case Status::FatalError: {
+                std::shared_ptr<BotMessage> *msg;
                 if (it->second.lastMessageHighPriority)
                 {
-                    it->second.highPriority.front().reset(new DataMessage(ElementType::Error, ""));
+                    msg = &it->second.highPriority.front();
                 }
                 else
                 {
-                    it->second.lowPriority.front().reset(new DataMessage(ElementType::Error, ""));
+                    msg = &it->second.lowPriority.front();
                 }
+                msg->reset(new DataMessage(ElementType::Error, msg->get()->getUrl()));
                 break;
             }
             }

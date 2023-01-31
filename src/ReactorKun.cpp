@@ -302,15 +302,14 @@ void ReactorKun::_onMessageStatusUpdate(std::stop_token stoken)
 
 auto prepareFile(BotMessage const* msg)
 {
-    auto data = static_cast<DataMessage const*>(msg);
     td_api::object_ptr<td_api::InputFile> file;
-    if (!data->getFilePath().empty())
+    if (!msg->getFilePath().empty())
     {
-        file = td_api::make_object<td_api::inputFileLocal>(data->getFilePath());
+        file = td_api::make_object<td_api::inputFileLocal>(msg->getFilePath().data());
     }
     else
     {
-        file = td_api::make_object<td_api::inputFileRemote>(data->getUrl());
+        file = td_api::make_object<td_api::inputFileRemote>(msg->getUrl().data());
     }
     return file;
 }
@@ -323,19 +322,17 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     std::lock_guard lock(_messagesCacheLock);
     switch (message->getType())
     {
-    case ElementType::HEADER: {
-        auto header = static_cast<PostHeaderMessage*>(message.get());
-        response = _client.sendMessage(listener, "*Ссылка:* " + header->getUrl() +
-                            "\n*Теги:* " + header->getTags(),
-                            TextType::Markdown, true, true);
+    case ElementType::HEADER:
+        response = _client.sendMessage(listener, std::string("*Ссылка:* ").append(message->getUrl())
+                                       .append("\n*Теги:* ").append(message->getTags()),
+                                       TextType::Markdown, true, true);
         break;
-    }
     case ElementType::TEXT:
-        response = _client.sendMessage(listener, static_cast<TextMessage*>(message.get())->getText(),
+        response = _client.sendMessage(listener, message->getText().data(),
                                        TextType::Plain, true, true);
         break;
     case ElementType::URL:
-        response = _client.sendMessage(listener, static_cast<DataMessage*>(message.get())->getUrl(),
+        response = _client.sendMessage(listener, message->getUrl().data(),
                                        TextType::Plain, false, true);
         break;
     case ElementType::IMG:
@@ -350,15 +347,14 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         response = _client.sendPhoto(listener, std::move(file), "", TextType::Plain, true);
         break;
     }
-    case ElementType::FOOTER: {
-        auto footer = static_cast<PostFooterMessage*>(message.get());
-        response = _client.sendMessage(listener, "☣️*" + std::string(footer->getSignature()) + "*☣️",
+    case ElementType::FOOTER:
+        response = _client.sendMessage(listener, "☣️*" + std::string(message->getSignature()) + "*☣️",
                                        TextType::Markdown, true);
         break;
-    }
     case ElementType::Error:
     {
-        response = _client.sendMessage(listener, "Критическая ошибка⚀, не удалось отправить сообщение.",
+        response = _client.sendMessage(listener, std::string("Критическая ошибка, не удалось отправить сообщение.\n")
+                                       .append(message->getUrl()),
                                        TextType::Plain, true, true);
         break;
     }
