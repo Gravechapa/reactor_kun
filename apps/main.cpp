@@ -1,15 +1,15 @@
 #define BOOST_STACKTRACE_LINK
-#include <curl/curl.h>
 #include "Config.hpp"
 #include "ReactorKun.hpp"
-#include <thread>
 #include <boost/stacktrace.hpp>
 #include <csignal>
-#include <plog/Log.h>
-#include <plog/Initializers/RollingFileInitializer.h>
-#include <plog/Formatters/TxtFormatter.h>
-#include <plog/Appenders/ColorConsoleAppender.h>
+#include <curl/curl.h>
 #include <filesystem>
+#include <plog/Appenders/ColorConsoleAppender.h>
+#include <plog/Formatters/TxtFormatter.h>
+#include <plog/Initializers/RollingFileInitializer.h>
+#include <plog/Log.h>
+#include <thread>
 
 void failStackTrace(int signum)
 {
@@ -40,7 +40,7 @@ int main()
         PLOGI << "Bot started.";
         reactorKun.run();
     }
-    catch (std::exception& e)
+    catch (std::exception &e)
     {
         PLOGF << e.what();
     }

@@ -1,6 +1,5 @@
 #include "BotDB.hpp"
 #include <inttypes.h>
-#include "Parser.hpp"
 #include <utility>
 #include <stdexcept>
 #include <sqlite3.h>

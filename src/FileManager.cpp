@@ -1,5 +1,6 @@
 #include "FileManager.hpp"
 #include "Parser.hpp"
+#include "SpinGuard.hpp"
 
 FileManager::FileManager(std::string_view path)
 {

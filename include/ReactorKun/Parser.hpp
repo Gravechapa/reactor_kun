@@ -1,6 +1,5 @@
 #pragma once
 #include <mutex>
-#include "AuxiliaryFunctions.hpp"
 
 struct ContentInfo
 {

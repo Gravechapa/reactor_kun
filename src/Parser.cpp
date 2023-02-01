@@ -1,5 +1,6 @@
 #include "Parser.hpp"
 #include "RustReactorParser.h"
+#include "AuxiliaryFunctions.hpp"
 #include <fstream>
 #include <plog/Log.h>
 #include "BotDB.hpp"
