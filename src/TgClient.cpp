@@ -27,7 +27,7 @@ void logCallback(int verbosity_level, const char *message)
     }
 }
 
-std::optional<int32_t> errorCheck(td_api::object_ptr<td_api::Object> &obj)
+std::optional<int32_t> TgClient::_errorCheck(td_api::object_ptr<td_api::Object> &obj)
 {
     if (obj->get_id() == td_api::error::ID)
     {
@@ -53,6 +53,49 @@ uint64_t TgClient::_nextId()
         ++_currentQueryId;
     }
     return _currentQueryId;
+}
+
+td_api::object_ptr<td_api::formattedText> TgClient::_parseText(const std::string &text, TextType parseMode)
+{
+    td_api::object_ptr<td_api::formattedText> result;
+    switch (parseMode)
+    {
+    case TextType::Plain:
+        result = td_api::make_object<td_api::formattedText>();
+        result->text_ = text;
+        break;
+    case TextType::Markdown: {
+        auto formattedText = td::ClientManager::execute(td_api::make_object<td_api::parseTextEntities>(
+            text, td_api::make_object<td_api::textParseModeMarkdown>(1)));
+        if (_errorCheck(formattedText))
+        {
+            throw std::runtime_error("Bad Markdown formatting: " + text);
+        }
+        result = td_api::move_object_as<td_api::formattedText>(formattedText);
+        break;
+    }
+    case TextType::MarkdownV2: {
+        auto formattedText = td::ClientManager::execute(td_api::make_object<td_api::parseTextEntities>(
+            text, td_api::make_object<td_api::textParseModeMarkdown>(2)));
+        if (_errorCheck(formattedText))
+        {
+            throw std::runtime_error("Bad MarkdownV2 formatting: " + text);
+        }
+        result = td_api::move_object_as<td_api::formattedText>(formattedText);
+        break;
+    }
+    case TextType::HTML: {
+        auto formattedText = td::ClientManager::execute(
+            td_api::make_object<td_api::parseTextEntities>(text, td_api::make_object<td_api::textParseModeHTML>()));
+        if (_errorCheck(formattedText))
+        {
+            throw std::runtime_error("Bad HTML formatting: " + text);
+        }
+        result = td_api::move_object_as<td_api::formattedText>(formattedText);
+        break;
+    }
+    }
+    return result;
 }
 
 TgClient::TgClient(Config &config) : _config(config)
@@ -98,7 +141,7 @@ void TgClient::_setProxy()
     }
     auto result = _send(td_api::make_object<td_api::addProxy>(_config.getProxyAddress().data(), _config.getProxyPort(),
                                                               true, std::move(type)));
-    if (errorCheck(result))
+    if (_errorCheck(result))
     {
         throw std::runtime_error("Can't set proxy.");
     }
@@ -107,7 +150,7 @@ void TgClient::_setProxy()
 void TgClient::_clearProxy()
 {
     auto response = _send(td_api::make_object<td_api::getProxies>());
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         throw std::runtime_error("Can't get proxies list.");
     }
@@ -115,7 +158,7 @@ void TgClient::_clearProxy()
     for (auto &proxy : proxies->proxies_)
     {
         response = _send(td_api::make_object<td_api::removeProxy>(proxy->id_));
-        errorCheck(response);
+        _errorCheck(response);
     }
 }
 
@@ -140,7 +183,7 @@ std::queue<TgClient::MessageStatus> TgClient::getMessagesStatusesUpdates()
 std::optional<td_api::object_ptr<td_api::user>> TgClient::getMe()
 {
     auto response = _sendWhenReady(td_api::make_object<td_api::getMe>());
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -150,7 +193,7 @@ std::optional<td_api::object_ptr<td_api::user>> TgClient::getMe()
 std::optional<td_api::object_ptr<td_api::chat>> TgClient::getChat(td_api::int53 chatId)
 {
     auto response = _sendWhenReady(td_api::make_object<td_api::getChat>(chatId));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -160,7 +203,7 @@ std::optional<td_api::object_ptr<td_api::chat>> TgClient::getChat(td_api::int53 
 std::optional<td_api::object_ptr<td_api::user>> TgClient::getUser(td_api::int53 userId)
 {
     auto response = _sendWhenReady(td_api::make_object<td_api::getUser>(userId));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -170,54 +213,11 @@ std::optional<td_api::object_ptr<td_api::user>> TgClient::getUser(td_api::int53 
 std::optional<td_api::object_ptr<td_api::supergroup>> TgClient::getSupergroup(td_api::int53 supergroupId)
 {
     auto response = _sendWhenReady(td_api::make_object<td_api::getSupergroup>(supergroupId));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
     return td_api::move_object_as<td_api::supergroup>(response);
-}
-
-td_api::object_ptr<td_api::formattedText> parseText(const std::string &text, TextType parseMode)
-{
-    td_api::object_ptr<td_api::formattedText> result;
-    switch (parseMode)
-    {
-    case TextType::Plain:
-        result = td_api::make_object<td_api::formattedText>();
-        result->text_ = text;
-        break;
-    case TextType::Markdown: {
-        auto formattedText = td::ClientManager::execute(td_api::make_object<td_api::parseTextEntities>(
-            text, td_api::make_object<td_api::textParseModeMarkdown>(1)));
-        if (errorCheck(formattedText))
-        {
-            throw std::runtime_error("Bad Markdown formatting: " + text);
-        }
-        result = td_api::move_object_as<td_api::formattedText>(formattedText);
-        break;
-    }
-    case TextType::MarkdownV2: {
-        auto formattedText = td::ClientManager::execute(td_api::make_object<td_api::parseTextEntities>(
-            text, td_api::make_object<td_api::textParseModeMarkdown>(2)));
-        if (errorCheck(formattedText))
-        {
-            throw std::runtime_error("Bad MarkdownV2 formatting: " + text);
-        }
-        result = td_api::move_object_as<td_api::formattedText>(formattedText);
-        break;
-    }
-    case TextType::HTML: {
-        auto formattedText = td::ClientManager::execute(
-            td_api::make_object<td_api::parseTextEntities>(text, td_api::make_object<td_api::textParseModeHTML>()));
-        if (errorCheck(formattedText))
-        {
-            throw std::runtime_error("Bad HTML formatting: " + text);
-        }
-        result = td_api::move_object_as<td_api::formattedText>(formattedText);
-        break;
-    }
-    }
-    return result;
 }
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(td_api::int53 chatId, const std::string &text,
@@ -228,9 +228,9 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(td_api:
 {
     auto inputText = td_api::make_object<td_api::inputMessageText>();
     inputText->disable_web_page_preview_ = disableWebPagePreview;
-    inputText->text_ = parseText(text, parseMode);
+    inputText->text_ = _parseText(text, parseMode);
     auto response = _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputText));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -254,11 +254,11 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
     }
     if (!text.empty())
     {
-        inputDocument->caption_ = parseText(text, parseMode);
+        inputDocument->caption_ = _parseText(text, parseMode);
     }
     auto response =
         _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputDocument));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -273,10 +273,10 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendPhoto(
     inputPhoto->photo_ = std::move(photo);
     if (!text.empty())
     {
-        inputPhoto->caption_ = parseText(text, parseMode);
+        inputPhoto->caption_ = _parseText(text, parseMode);
     }
     auto response = _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputPhoto));
-    if (errorCheck(response))
+    if (_errorCheck(response))
     {
         return std::nullopt;
     }
@@ -428,7 +428,7 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             break;
         case td_api::authorizationStateWaitEncryptionKey::ID: {
             auto result = _send(td_api::make_object<td_api::setDatabaseEncryptionKey>("~ReactorKun~"));
-            auto error = errorCheck(result);
+            auto error = _errorCheck(result);
             if (error)
             {
                 if (error.value() == 400)
@@ -454,7 +454,7 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
         }
         case td_api::authorizationStateWaitPhoneNumber::ID: {
             auto result = _send(td_api::make_object<td_api::checkAuthenticationBotToken>(_config.getToken()));
-            if (errorCheck(result))
+            if (_errorCheck(result))
             {
                 if (retry)
                 {
@@ -483,7 +483,7 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             param->enable_storage_optimizer_ = true;
             auto request = td_api::make_object<td_api::setTdlibParameters>(std::move(param));
             auto result = _send(std::move(request));
-            if (errorCheck(result))
+            if (_errorCheck(result))
             {
                 if (retry)
                 {
@@ -521,7 +521,7 @@ void TgClient::_run(std::stop_token stoken)
             if (_requests.empty())
             {
                 _init();
-                //reset proxy in case the database was destroyed
+                // reset proxy in case the database was destroyed
                 _clearProxy();
                 _setProxy();
                 _restart = false;

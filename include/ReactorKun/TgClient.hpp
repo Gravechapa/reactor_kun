@@ -64,6 +64,8 @@ class TgClient
         TextType parseMode = TextType::Plain, bool disableNotification = false, td_api::int53 replyToMessageId = 0,
         td_api::int53 messageThreadId = 0);
 
+    template <size_t N> bool setCommands(const std::array<std::pair<const char *, const char *>, N> &commands);
+
   private:
     void _init();
     void _setProxy();
@@ -75,8 +77,9 @@ class TgClient
     void _updateHandler(td_api::object_ptr<td_api::Object> &update);
     void _authHandler(td_api::object_ptr<td_api::AuthorizationState> &&authState);
     void _run(std::stop_token stoken);
-    uint64_t _getNextId();
     uint64_t _nextId();
+    std::optional<int32_t> _errorCheck(td_api::object_ptr<td_api::Object> &obj);
+    td_api::object_ptr<td_api::formattedText> _parseText(const std::string &text, TextType parseMode);
     td_api::object_ptr<td_api::Object> _sendMessage(td_api::int53 chatId, td_api::int53 messageThreadId,
                                                     td_api::int53 replyToMessageId, bool disableNotification,
                                                     td_api::object_ptr<td_api::InputMessageContent> &&content);
@@ -99,3 +102,14 @@ class TgClient
     std::queue<MessageStatus> _messagesStatusesUpdates;
     std::jthread _receiver;
 };
+
+template <size_t N> bool TgClient::setCommands(const std::array<std::pair<const char *, const char *>, N> &commands)
+{
+    td_api::array<td_api::object_ptr<td_api::botCommand>> botCommands;
+    for (auto &command : commands)
+    {
+        botCommands.emplace_back(td_api::make_object<td_api::botCommand>(command.first, command.second));
+    }
+    auto result = _sendWhenReady(td_api::make_object<td_api::setCommands>(nullptr, "", std::move(botCommands)));
+    return !_errorCheck(result);
+}

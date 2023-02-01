@@ -8,6 +8,13 @@
 #include <functional>
 
 static std::atomic_bool _stop{false};
+constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char *>>({
+    {"start", "Подписаться"},
+    {"stop", "Отписаться"},
+    {"latest", "Получить последний пост"},
+    {"random", "Получить случайный пост"},
+    {"by_number", "Получить пост по номеру(/by_number 22 or /by_number@bot_name 22)"},
+});
 
 ReactorKun::ReactorKun(Config &config):
     _client(config), _config(config)
@@ -18,17 +25,14 @@ ReactorKun::ReactorKun(Config &config):
                             _stop = true;
                         });
 
-    if (_config.isProxyEnabledForTelegram())
-    {
-        //configCurlProxy(curlClient.curlSettings, _config.getProxy(), _config.getProxyUsePwd());
-    }
-
     auto user = _client.getMe();
     if (!user)
     {
         throw std::runtime_error("Can't get bot info");
     }
     _botName = user.value()->username_;
+    _client.setCommands(COMMANDS);
+
     Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
     if (_config.isProxyEnabledForReactor())
     {
@@ -93,9 +97,9 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
 
     static const std::string_view addCMD = "/start";
     static const std::string_view removeCMD = "/stop";
-    static const std::string_view getLatestCMD = "/get_latest";
-    static const std::string_view getRandomCMD = "/get_random";
-    static const std::string_view getPostByNumberCMD = "/get_post_by_number";
+    static const std::string_view getLatestCMD = "/latest";
+    static const std::string_view getRandomCMD = "/random";
+    static const std::string_view getPostByNumberCMD = "/by_number";
     static const std::string_view killCMD = "/kill";
     static const std::string_view secretCMD = "/killall -9";
 
