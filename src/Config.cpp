@@ -148,28 +148,26 @@ Config::Config(std::string configFile)
         auto proxyJson = result.value();
         _enableProxyForReactor = getBool(proxyJson, "enableForReactor", FieldType::Required, parent).value();
         _enableProxyForTelegram = getBool(proxyJson, "enableForTelegram", FieldType::Required, parent).value();
-        auto proxyType = getSring(proxyJson, "type", FieldType::Required, parent).value();
-        if (proxyType != "http" && proxyType != "https" && proxyType != "socks5" && proxyType != "socks5h")
+        _proxyType = getSring(proxyJson, "type", FieldType::Required, parent).value();
+        if (_proxyType != "http" && _proxyType != "https" && _proxyType != "socks5")
         {
             throw std::runtime_error("Bad config: bad proxy type");
         }
-        auto proxyAddress = getSring(proxyJson, "address", FieldType::Required, parent).value();
+        _proxyAddress = getSring(proxyJson, "address", FieldType::Required, parent).value();
 
         const std::regex validIpAddressRegex("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-"
                                              "9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$");
         const std::regex validHostnameRegex("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-"
                                             "Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$");
-        if (!std::regex_match(proxyAddress, validIpAddressRegex) && !std::regex_match(proxyAddress, validHostnameRegex))
+        if (!std::regex_match(_proxyAddress, validIpAddressRegex) &&
+            !std::regex_match(_proxyAddress, validHostnameRegex))
         {
             throw std::runtime_error("Bad config: bad proxy address");
         }
 
-        auto proxyPort = getUnsignedInteger<uint16_t>(proxyJson, "port", FieldType::Required, parent).value();
-        _proxyAddress = proxyType + "://" + proxyAddress + ":" + std::to_string(proxyPort);
-
-        auto proxyUser = getSring(proxyJson, "user", FieldType::Optional, parent).value_or("");
-        auto proxyPassword = getSring(proxyJson, "password", FieldType::Optional, parent).value_or("");
-        _proxyUsePwd = urlEncode(proxyUser) + ':' + urlEncode(proxyPassword);
+        _proxyPort = getUnsignedInteger<uint16_t>(proxyJson, "port", FieldType::Required, parent).value();
+        _proxyUser = getSring(proxyJson, "user", FieldType::Optional, parent).value_or("");
+        _proxyPassword = getSring(proxyJson, "password", FieldType::Optional, parent).value_or("");
     }
 }
 
@@ -317,12 +315,33 @@ bool Config::isProxyEnabledForTelegram() const
     return _enableProxyForTelegram;
 }
 
-const std::string &Config::getProxy() const
+std::string Config::getProxy() const
+{
+    return _proxyType + "://" + _proxyAddress + ":" + std::to_string(_proxyPort);
+}
+
+std::string Config::getProxyUsePwd() const
+{
+    return urlEncode(_proxyUser) + ':' + urlEncode(_proxyPassword);
+}
+
+std::string_view Config::getProxyType() const
+{
+    return _proxyType;
+}
+std::string_view Config::getProxyAddress() const
 {
     return _proxyAddress;
 }
-
-const std::string &Config::getProxyUsePwd() const
+uint16_t Config::getProxyPort() const
 {
-    return _proxyUsePwd;
+    return _proxyPort;
+}
+std::string_view Config::getProxyUser() const
+{
+    return _proxyUser;
+}
+std::string_view Config::getProxyPassword() const
+{
+    return _proxyPassword;
 }

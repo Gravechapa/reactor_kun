@@ -55,13 +55,14 @@ uint64_t TgClient::_nextId()
     return _currentQueryId;
 }
 
-TgClient::TgClient(int32_t apiId, std::string_view apiHash, std::string_view token)
-    : _apiId(apiId), _apiHash(apiHash), _token(token)
+TgClient::TgClient(Config &config) : _config(config)
 {
     td::ClientManager::execute(
         td_api::make_object<td_api::setLogStream>(td_api::make_object<td_api::logStreamEmpty>()));
     _init();
     _receiver = std::jthread(std::bind_front(&TgClient::_run, this));
+    _clearProxy();
+    _setProxy();
 }
 
 TgClient::~TgClient()
@@ -76,6 +77,46 @@ void TgClient::_init()
     _tgClientManager->set_log_message_callback(1, &logCallback);
     _tgClientId = _tgClientManager->create_client_id();
     _tgClientManager->send(_tgClientId, _currentQueryId, td_api::make_object<td_api::getOption>("version"));
+}
+
+void TgClient::_setProxy()
+{
+    if (!_config.isProxyEnabledForTelegram())
+    {
+        return;
+    }
+    td_api::object_ptr<td_api::ProxyType> type;
+    if (_config.getProxyType() == "http" || _config.getProxyType() == "https")
+    {
+        type = td_api::make_object<td_api::proxyTypeHttp>(_config.getProxyUser().data(),
+                                                          _config.getProxyPassword().data(), false);
+    }
+    else if (_config.getProxyType() == "socks5")
+    {
+        type = td_api::make_object<td_api::proxyTypeSocks5>(_config.getProxyUser().data(),
+                                                            _config.getProxyPassword().data());
+    }
+    auto result = _send(td_api::make_object<td_api::addProxy>(_config.getProxyAddress().data(), _config.getProxyPort(),
+                                                              true, std::move(type)));
+    if (errorCheck(result))
+    {
+        throw std::runtime_error("Can't set proxy.");
+    }
+}
+
+void TgClient::_clearProxy()
+{
+    auto response = _send(td_api::make_object<td_api::getProxies>());
+    if (errorCheck(response))
+    {
+        throw std::runtime_error("Can't get proxies list.");
+    }
+    auto proxies = td_api::move_object_as<td_api::proxies>(response);
+    for (auto &proxy : proxies->proxies_)
+    {
+        response = _send(td_api::make_object<td_api::removeProxy>(proxy->id_));
+        errorCheck(response);
+    }
 }
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::getUpdate()
@@ -301,7 +342,8 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
         auto option = td_api::move_object_as<td_api::updateOption>(update);
         if (option->name_ == "my_id")
         {
-            auto botId = _token.substr(0, _token.find(":"));
+            auto token = _config.getToken();
+            auto botId = token.substr(0, token.find(":"));
             if (std::to_string(td_api::move_object_as<td_api::optionValueInteger>(option->value_)->value_) != botId)
             {
                 PLOGI << "Bot id has changed. Loging out.";
@@ -391,7 +433,7 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             {
                 if (error.value() == 400)
                 {
-                    PLOGW << "Wrong database encryption key. Destroying database.";
+                    PLOGE << "Wrong database encryption key. Destroying database.";
                     _sendWithoutResponse(td_api::make_object<td_api::destroy>());
                     retry = false;
                 }
@@ -411,7 +453,7 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             break;
         }
         case td_api::authorizationStateWaitPhoneNumber::ID: {
-            auto result = _send(td_api::make_object<td_api::checkAuthenticationBotToken>(_token));
+            auto result = _send(td_api::make_object<td_api::checkAuthenticationBotToken>(_config.getToken()));
             if (errorCheck(result))
             {
                 if (retry)
@@ -433,11 +475,11 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             param->use_chat_info_database_ = true;
             param->use_message_database_ = false;
             param->use_secret_chats_ = false;
-            param->api_id_ = _apiId;
-            param->api_hash_ = _apiHash;
+            param->api_id_ = _config.getApiId();
+            param->api_hash_ = _config.getApiHash();
             param->system_language_code_ = "en";
             param->device_model_ = "Desktop";
-            param->application_version_ = "2.0";
+            param->application_version_ = REACTORKUN_VERSION;
             param->enable_storage_optimizer_ = true;
             auto request = td_api::make_object<td_api::setTdlibParameters>(std::move(param));
             auto result = _send(std::move(request));
@@ -479,6 +521,9 @@ void TgClient::_run(std::stop_token stoken)
             if (_requests.empty())
             {
                 _init();
+                //reset proxy in case the database was destroyed
+                _clearProxy();
+                _setProxy();
                 _restart = false;
             }
         }

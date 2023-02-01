@@ -10,7 +10,7 @@
 static std::atomic_bool _stop{false};
 
 ReactorKun::ReactorKun(Config &config):
-    _client(config.getApiId(), config.getApiHash(), config.getToken()), _config(config)
+    _client(config), _config(config)
 {
     static auto sig = std::signal(SIGINT, [](int)
                         {

@@ -1,4 +1,5 @@
 #pragma once
+#include "Config.hpp"
 #include <atomic>
 #include <future>
 #include <map>
@@ -35,7 +36,7 @@ class TgClient
         const std::optional<Error> error;
     };
 
-    TgClient(int32_t apiId, std::string_view apiHash, std::string_view token);
+    TgClient(Config &config);
     ~TgClient();
     TgClient(const TgClient &) = delete;
     TgClient &operator=(const TgClient &) = delete;
@@ -65,6 +66,8 @@ class TgClient
 
   private:
     void _init();
+    void _setProxy();
+    void _clearProxy();
     td_api::object_ptr<td_api::Object> _sendWhenReady(td_api::object_ptr<td_api::Function> &&fun);
     td_api::object_ptr<td_api::Object> _send(td_api::object_ptr<td_api::Function> &&fun);
     void _sendWithoutResponse(td_api::object_ptr<td_api::Function> &&fun);
@@ -78,22 +81,21 @@ class TgClient
                                                     td_api::int53 replyToMessageId, bool disableNotification,
                                                     td_api::object_ptr<td_api::InputMessageContent> &&content);
 
+    Config &_config;
     std::unique_ptr<td::ClientManager> _tgClientManager;
     int32_t _tgClientId;
-    int32_t _apiId;
-    std::string _apiHash;
-    std::string _token;
 
     std::atomic_bool _loggedIn{false};
     std::atomic_bool _restart{false};
-    uint64_t _currentQueryId{1};
-    std::mutex _idLock;
 
-    std::jthread _receiver;
+    std::mutex _idLock;
+    uint64_t _currentQueryId{1};
+
     std::mutex _requestLock;
     std::map<uint64_t, std::promise<td_api::object_ptr<td_api::Object>>> _requests;
     std::mutex _updateLock;
     std::queue<td_api::object_ptr<td_api::message>> _updates;
     std::mutex _mUpdateLock;
     std::queue<MessageStatus> _messagesStatusesUpdates;
+    std::jthread _receiver;
 };

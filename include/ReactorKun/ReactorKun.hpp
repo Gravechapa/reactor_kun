@@ -1,5 +1,4 @@
 #pragma once
-#include "Config.hpp"
 #include "TgClient.hpp"
 #include "ThreadPool.hpp"
 #include <boost/thread.hpp>

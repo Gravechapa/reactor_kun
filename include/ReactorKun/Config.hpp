@@ -20,8 +20,13 @@ class Config
     bool isFilesDownloadingEnabled() const;
     bool isProxyEnabledForReactor() const;
     bool isProxyEnabledForTelegram() const;
-    const std::string &getProxy() const;
-    const std::string &getProxyUsePwd() const;
+    std::string getProxy() const;
+    std::string getProxyUsePwd() const;
+    std::string_view getProxyType() const;
+    std::string_view getProxyAddress() const;
+    uint16_t getProxyPort() const;
+    std::string_view getProxyUser() const;
+    std::string_view getProxyPassword() const;
 
   private:
     void _processTag(std::string_view tag, uint8_t mode);
@@ -34,8 +39,11 @@ class Config
     std::string _reactorUrlPath;
     std::string _reactorTag;
     bool _filesDownloadingEnable;
+    std::string _proxyType;
     std::string _proxyAddress;
-    std::string _proxyUsePwd;
+    uint16_t _proxyPort;
+    std::string _proxyUser;
+    std::string _proxyPassword;
     bool _enableProxyForReactor;
     bool _enableProxyForTelegram;
 };

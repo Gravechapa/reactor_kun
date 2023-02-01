@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16...3.23)
 project(ReactorKun VERSION 2.0
                     DESCRIPTION "Joyreactor bot"
                     LANGUAGES CXX)
+add_compile_definitions(REACTORKUN_VERSION="${ReactorKun_VERSION}")
 
 message(STATUS "Start configuring project ${CMAKE_PROJECT_NAME}")
 
