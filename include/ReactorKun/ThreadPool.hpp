@@ -17,7 +17,6 @@ public:
     };
 
     ThreadPool(ReactorKun &bot);
-    ~ThreadPool();
 
     void addPostsToSend(std::vector<int64_t> &&listeners,
                         std::queue<std::shared_ptr<BotMessage>> &posts);
@@ -64,23 +63,22 @@ private:
         const Task& operator=(const Task&) = delete;
     };
 
+    void _sender(std::stop_token stoken);
+    void _scheduler(std::stop_token stoken);
+
     ReactorKun &_bot;
     static const short _defauldThreadsNumber;
 
-    void _sender();
-    void _scheduler();
-    std::vector<std::thread> _threads;
-    std::thread _schedulerThread;
-    std::atomic<bool> _threadsStop{false};
     const std::chrono::milliseconds _threadsDelay{16};
     const std::chrono::milliseconds _schedulerDelay{200};
 
-    std::map<int64_t, SendingQueue> _scheduleMap;
     std::atomic_flag _scheduleLock = ATOMIC_FLAG_INIT;
-
-    std::queue<Task> _threadsTasks;
+    std::map<int64_t, SendingQueue> _scheduleMap;
     std::atomic_flag _tasksLock = ATOMIC_FLAG_INIT;
-
-    std::chrono::high_resolution_clock::time_point _sendingLimit;
+    std::queue<Task> _threadsTasks;
     std::mutex _limitLock;
+    std::chrono::high_resolution_clock::time_point _sendingLimit;
+
+    std::vector<std::jthread> _threads;
+    std::jthread _schedulerThread;
 };

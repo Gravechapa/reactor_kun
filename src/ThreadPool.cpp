@@ -3,6 +3,7 @@
 #include "SpinGuard.hpp"
 #include "TgLimits.hpp"
 #include "ReactorKun.hpp"
+#include <functional>
 
 const short ThreadPool::_defauldThreadsNumber = 4;
 
@@ -10,33 +11,18 @@ ThreadPool::ThreadPool(ReactorKun &bot): _bot(bot)
 {
     auto poolSize = std::thread::hardware_concurrency()?
                 std::thread::hardware_concurrency():_defauldThreadsNumber;
+    _schedulerThread = std::jthread(std::bind_front(&ThreadPool::_scheduler, this));
+    auto stoken = _schedulerThread.get_stop_token();
     for (unsigned int i = 0; i < poolSize; ++i)
     {
-        _threads.emplace_back(std::thread(&ThreadPool::_sender, this));
-    }
-    _schedulerThread = std::thread(&ThreadPool::_scheduler, this);
-}
-
-ThreadPool::~ThreadPool()
-{
-    _threadsStop = true;
-    if(_schedulerThread.joinable())
-    {
-        _schedulerThread.join();
-    }
-    for (auto &thread : _threads)
-    {
-        if(thread.joinable())
-        {
-            thread.join();
-        }
+        _threads.emplace_back(std::jthread(&ThreadPool::_sender, this, stoken));
     }
 }
 
-void ThreadPool::_sender()
+void ThreadPool::_sender(std::stop_token stoken)
 {
     auto timePoint = std::chrono::high_resolution_clock::now();
-    while(!_threadsStop)
+    while(!stoken.stop_requested())
     {
         std::unique_lock limitGuard(_limitLock);
         wait(std::chrono::milliseconds(1000 / TgLimits::maxMessagePerSecond), _sendingLimit);
@@ -60,11 +46,11 @@ void ThreadPool::_sender()
     }
 }
 
-void ThreadPool::_scheduler()
+void ThreadPool::_scheduler(std::stop_token stoken)
 {
     auto timePoint = std::chrono::high_resolution_clock::now();
     std::queue<Task> tasksBuffer;
-    while(!_threadsStop)
+    while(!stoken.stop_requested())
     {
         SpinGuard scheduleGuard(_scheduleLock);
         for(auto it = _scheduleMap.begin(); it != _scheduleMap.end();)
