@@ -7,8 +7,6 @@ add_compile_definitions(REACTORKUN_VERSION="${ReactorKun_VERSION}")
 
 message(STATUS "Start configuring project ${CMAKE_PROJECT_NAME}")
 
-add_definitions(-DHAVE_CURL)
-
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)

@@ -17,7 +17,7 @@ constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char
 });
 
 ReactorKun::ReactorKun(Config &config):
-    _client(config), _config(config)
+    _config(config), _client(config)
 {
     static auto sig = std::signal(SIGINT, [](int)
                         {
@@ -53,13 +53,7 @@ ReactorKun::ReactorKun(Config &config):
         _client.getChat(listener);
     }
     _messageStatusChecker = std::jthread(std::bind_front(&ReactorKun::_onMessageStatusUpdate, this));
-    _mailer = boost::thread(&ReactorKun::_mailerHandler, this);
-}
-
-ReactorKun::~ReactorKun()
-{
-    _mailer.interrupt();
-    if(_mailer.joinable()){_mailer.join();}
+    _mailer = std::jthread(std::bind_front(&ReactorKun::_mailerHandler, this));
 }
 
 void ReactorKun::run()
@@ -371,13 +365,12 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     return false;
 }
 
-void ReactorKun::_mailerHandler()
+void ReactorKun::_mailerHandler(std::stop_token stoken)
 {
     auto pollPoint = std::chrono::high_resolution_clock::now();
     auto updatePoint = pollPoint - _mailerUpdateDelay;
-    boost::this_thread::interruption_enabled();
     std::queue<std::pair<int64_t, std::string>> tasks;
-    while (true)
+    while (!stoken.stop_requested())
     {
         //unlock spin
         {
@@ -407,12 +400,12 @@ void ReactorKun::_mailerHandler()
             tasks.pop();
         }
 
-        boost::this_thread::interruption_point();
+        if (stoken.stop_requested()) return;
         if (std::chrono::high_resolution_clock::now() - updatePoint > _mailerUpdateDelay)
         {
             updatePoint = std::chrono::high_resolution_clock::now();
             Parser::update();
-            boost::this_thread::interruption_point();
+            if (stoken.stop_requested()) return;
 
             auto listeners = BotDB::getBotDB().getListeners();
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
