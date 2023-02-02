@@ -1,6 +1,5 @@
 #include "ThreadPool.hpp"
 #include "AuxiliaryFunctions.hpp"
-#include "SpinGuard.hpp"
 #include "TgLimits.hpp"
 #include "ReactorKun.hpp"
 #include <functional>
@@ -21,28 +20,28 @@ ThreadPool::ThreadPool(ReactorKun &bot): _bot(bot)
 
 void ThreadPool::_sender(std::stop_token stoken)
 {
-    auto timePoint = std::chrono::high_resolution_clock::now();
     while(!stoken.stop_requested())
     {
         std::unique_lock limitGuard(_limitLock);
         wait(std::chrono::milliseconds(1000 / TgLimits::maxMessagePerSecond), _sendingLimit);
         limitGuard.unlock();
 
-        SpinGuard tasksGuard(_tasksLock);
+        std::unique_lock tasksGuard(_tasksLock);
         if (!_threadsTasks.empty())
         {
             Task task(std::move(_threadsTasks.front()));
             _threadsTasks.pop();
             tasksGuard.unlock();
-            task.status = _bot._sendMessage(task.listener, task.message) ? Status::Pending : Status::Error;
+            //I don't know in what cases tdlib can return an error on send.
+            //So for now, messages will just be removed.
+            task.status = _bot._sendMessage(task.listener, task.message) ? Status::Pending : Status::Success;
             task.lastSend = std::chrono::high_resolution_clock::now();
         }
         else
         {
             tasksGuard.unlock();
+            std::this_thread::sleep_for(_threadsDelay);
         }
-
-        wait(_threadsDelay, timePoint);
     }
 }
 
@@ -52,7 +51,7 @@ void ThreadPool::_scheduler(std::stop_token stoken)
     std::queue<Task> tasksBuffer;
     while(!stoken.stop_requested())
     {
-        SpinGuard scheduleGuard(_scheduleLock);
+        std::unique_lock scheduleGuard(_scheduleLock);
         for(auto it = _scheduleMap.begin(); it != _scheduleMap.end();)
         {
             std::unique_lock timeGuard(it->second.timeLock, std::try_to_lock);
@@ -113,7 +112,7 @@ void ThreadPool::_scheduler(std::stop_token stoken)
         scheduleGuard.unlock();
         if (!tasksBuffer.empty())
         {
-            SpinGuard tasksGuard(_tasksLock);
+            std::lock_guard tasksGuard(_tasksLock);
             while (!tasksBuffer.empty())
             {
                 _threadsTasks.push(std::move(tasksBuffer.front()));
@@ -133,7 +132,7 @@ void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners,
 void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners,
                                 std::queue<std::shared_ptr<BotMessage>> &posts)
 {
-    SpinGuard scheduleGuard(_scheduleLock);
+    std::lock_guard scheduleGuard(_scheduleLock);
     while (!posts.empty())
     {
         for (auto listener : listeners)
@@ -147,7 +146,7 @@ void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners,
 void ThreadPool::addTextToSend(std::vector<int64_t> &&listeners, std::string_view text)
 {
     std::shared_ptr<BotMessage> sharedMsg(new TextMessage(text));
-    SpinGuard scheduleGuard(_scheduleLock);
+    std::lock_guard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {
         _scheduleMap[listener].highPriority.push(sharedMsg);
@@ -157,7 +156,7 @@ void ThreadPool::addTextToSend(std::vector<int64_t> &&listeners, std::string_vie
 void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view url)
 {
     std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::IMG, url));
-    SpinGuard scheduleGuard(_scheduleLock);
+    std::lock_guard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {
         _scheduleMap[listener].highPriority.push(sharedMsg);
@@ -166,7 +165,7 @@ void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view
 
 void ThreadPool::setStatus(int64_t listener, Status status, int32_t wait)
 {
-    SpinGuard scheduleGuard(_scheduleLock);
+    std::lock_guard scheduleGuard(_scheduleLock);
     auto &sq = _scheduleMap.at(listener);
     sq.status = status;
     if (status == Status::Error)

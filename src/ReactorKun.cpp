@@ -368,7 +368,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         _sentMessagesCache.insert({listener, response.value()->id_});
         return true;
     }
-    return true; //I don't know in what cases it might be useful. So for now, the function always returns true.
+    return false;
 }
 
 void ReactorKun::_mailerHandler()

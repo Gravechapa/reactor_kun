@@ -1,15 +1,14 @@
 #pragma once
 #include <cstdint>
 
-class TgLimits
+namespace TgLimits
 {
-public:
-    static const int32_t maxPhotoSize;
-    static const int32_t maxFileSize;
-    static const int32_t maxPhotoSizeByUrl;
-    static const int32_t maxFileSizeByUrl;
-    static const uint32_t maxMessageUtf8Char;
-    static const int32_t maxPhotoDimension;
-    static const int32_t maxMessagePerSecond;
-    static const int32_t maxMessagePerGroupPerMin;
+    constexpr int32_t maxPhotoSize = 0xA00000;
+    constexpr int32_t maxFileSize = 0x7D000000;/*0x3200000;*/
+    constexpr int32_t maxPhotoSizeByUrl = 0x500000;
+    constexpr int32_t maxFileSizeByUrl = 0x1400000;
+    constexpr uint32_t maxMessageUtf8Char = 4096;
+    constexpr int32_t maxPhotoDimension = 1280;
+    constexpr int32_t maxMessagePerSecond = 30;
+    constexpr int32_t maxMessagePerGroupPerMin = 20;
 };

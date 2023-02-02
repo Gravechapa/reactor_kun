@@ -72,9 +72,9 @@ private:
     const std::chrono::milliseconds _threadsDelay{16};
     const std::chrono::milliseconds _schedulerDelay{200};
 
-    std::atomic_flag _scheduleLock = ATOMIC_FLAG_INIT;
+    std::mutex _scheduleLock;
     std::map<int64_t, SendingQueue> _scheduleMap;
-    std::atomic_flag _tasksLock = ATOMIC_FLAG_INIT;
+    std::mutex _tasksLock;
     std::queue<Task> _threadsTasks;
     std::mutex _limitLock;
     std::chrono::high_resolution_clock::time_point _sendingLimit;
