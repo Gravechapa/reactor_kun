@@ -7,7 +7,6 @@
 #include <csignal>
 #include <functional>
 
-static std::atomic_bool _stop{false};
 constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char *>>({
     {"start", "Подписаться"},
     {"stop", "Отписаться"},
@@ -16,15 +15,9 @@ constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char
     {"by_number", "Получить пост по номеру(/by_number 22 or /by_number@bot_name 22)"},
 });
 
-ReactorKun::ReactorKun(Config &config):
-    _config(config), _client(config)
-{
-    static auto sig = std::signal(SIGINT, [](int)
-                        {
-                            PLOGI << "SIGINT got";
-                            _stop = true;
-                        });
-
+ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop):
+    _config(config), _stop(stop), _client(config)
+{ 
     auto user = _client.getMe();
     if (!user)
     {

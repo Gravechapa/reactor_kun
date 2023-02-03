@@ -5,7 +5,7 @@
 class ReactorKun
 {
   public:
-    ReactorKun(Config &config);
+    ReactorKun(Config &config, std::atomic_bool &stop);
     void run();
 
   private:
@@ -24,6 +24,7 @@ class ReactorKun
     const std::chrono::milliseconds _messageStatusCheckerDelay{16};
 
     Config &_config;
+    std::atomic_bool &_stop;
     std::string _botName;
     TgClient _client;
     std::mutex _messagesCacheLock;

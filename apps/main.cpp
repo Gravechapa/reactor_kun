@@ -29,14 +29,19 @@ int main()
     plog::get()->addAppender(plog::get<1>());
     PLOGV << "Log initiated";
 
+    static std::atomic_bool stop{false};
     std::signal(SIGSEGV, &failStackTrace);
     std::signal(SIGABRT, &failStackTrace);
+    std::signal(SIGINT, [](int) {
+        PLOGI << "SIGINT got";
+        stop = true;
+    });
 
     curl_global_init(CURL_GLOBAL_ALL);
     try
     {
         auto config = Config("configs/config.json");
-        ReactorKun reactorKun(config);
+        ReactorKun reactorKun(config, stop);
         PLOGI << "Bot started.";
         reactorKun.run();
     }

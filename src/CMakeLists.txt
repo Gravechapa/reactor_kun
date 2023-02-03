@@ -21,11 +21,11 @@ endif(MSVC)
 target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} Td::TdStatic dl
     ${Boost_LIBRARIES} SQLite::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
 
-#target_compile_options(reactor_kun_core PUBLIC
-#          $<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>
-#          $<$<CXX_COMPILER_ID:Clang,GNU>:-Wall -Wextra -pedantic -Werror>
-#          $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-#      )
+target_compile_options(reactor_kun_core PUBLIC
+          #$<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>
+          $<$<CXX_COMPILER_ID:Clang,GNU>:-Wall -Wextra -pedantic>
+          $<$<CXX_COMPILER_ID:MSVC>:/W4>
+      )
 
 # IDEs should put the headers in a nice place
 source_group(

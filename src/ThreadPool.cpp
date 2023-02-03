@@ -62,9 +62,8 @@ void ThreadPool::_scheduler(std::stop_token stoken)
                 ++it;
                 continue;
             }
-            switch (it->second.status)
+            if (it->second.status == Status::Success)
             {
-            case Status::Success:
                 if (it->second.lastMessageHighPriority)
                 {
                     it->second.highPriority.pop();
@@ -80,8 +79,9 @@ void ThreadPool::_scheduler(std::stop_token stoken)
                     it = _scheduleMap.erase(it);
                     continue;
                 }
-                break;
-            case Status::FatalError: {
+            }
+            if (it->second.status == Status::FatalError)
+            {
                 std::shared_ptr<BotMessage> *msg;
                 if (it->second.lastMessageHighPriority)
                 {
@@ -92,8 +92,6 @@ void ThreadPool::_scheduler(std::stop_token stoken)
                     msg = &it->second.lowPriority.front();
                 }
                 msg->reset(new DataMessage(ElementType::Error, msg->get()->getUrl()));
-                break;
-            }
             }
             if (!it->second.highPriority.empty())
             {

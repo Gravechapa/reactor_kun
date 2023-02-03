@@ -51,6 +51,7 @@ set_target_properties(reactor_kun reactor_kun_core
     CXX_EXTENSIONS OFF
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
+    COMPILE_WARNING_AS_ERROR ON
 )
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")

@@ -101,6 +101,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
                     return;
                 }
             }
+            default:;
         }
 
         if (_downloadingEnable)
