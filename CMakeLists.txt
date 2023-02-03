@@ -1,34 +1,25 @@
-cmake_minimum_required(VERSION 3.14...3.23)
+cmake_minimum_required(VERSION 3.16...3.23)
 
-project(ReactorKun VERSION 1.1
+project(ReactorKun VERSION 2.0
                     DESCRIPTION "Joyreactor bot"
                     LANGUAGES CXX)
+add_compile_definitions(REACTORKUN_VERSION="${ReactorKun_VERSION}")
 
 message(STATUS "Start configuring project ${CMAKE_PROJECT_NAME}")
 
-add_definitions(-DHAVE_CURL)
-
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-
-    set(CMAKE_CXX_EXTENSIONS OFF)
-    set(CMAKE_CXX_STANDARD 20)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
     if((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -fsanitize=undefined")
+        #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -fsanitize=undefined")
     endif()
 endif()
 
 ############# Fetch dependencies ##############
 include(FetchContent)
-message(STATUS "Fetching TGbot")
-include("cmake/TGBot.cmake")
+message(STATUS "Fetching TDLib")
+include("cmake/TDLib.cmake")
 
 message(STATUS "Fetching Json")
 include("cmake/Json.cmake")
@@ -47,12 +38,27 @@ include(CheckIPOSupported)
 add_subdirectory(src)
 add_subdirectory(apps)
 
+check_ipo_supported(RESULT result)
+if(result)
+  set_target_properties(reactor_kun reactor_kun_core PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
+
+set_target_properties(reactor_kun reactor_kun_core
+    PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    CXX_EXTENSIONS OFF
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    COMPILE_WARNING_AS_ERROR ON
+)
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
 file(GLOB_RECURSE CONFIGS RELATIVE "${DATA_FILES_DIR}" "${DATA_FILES_DIR}/configs/*")
 
 foreach(CONFIG ${CONFIGS})
     configure_file(${DATA_FILES_DIR}/${CONFIG}
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${CONFIG} COPYONLY)
+        ${CMAKE_BINARY_DIR}/bin/${CONFIG} COPYONLY)
 endforeach(CONFIG)
 #########################################################################################

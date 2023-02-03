@@ -5,31 +5,27 @@ add_library(reactor_kun_core ${SOURCE_LIST} ${HEADER_LIST} ${UTF8_STRING_SOURCE}
 
 target_include_directories(reactor_kun_core PUBLIC ../include/ReactorKun)
 
-add_dependencies(reactor_kun_core reactor_parser)
+target_precompile_headers(reactor_kun_core PUBLIC ${HEADER_LIST})
 
-check_ipo_supported(RESULT result)
-if(result)
-  set_target_properties(reactor_kun_core PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
+add_dependencies(reactor_kun_core reactor_parser)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
 if(UNIX)
-    find_package(Boost REQUIRED COMPONENTS thread stacktrace_addr2line)
+    find_package(Boost REQUIRED COMPONENTS stacktrace_addr2line)
 endif(UNIX)
 if(MSVC)
-    find_package(Boost REQUIRED COMPONENTS thread stacktrace_windbg)
+    find_package(Boost REQUIRED COMPONENTS stacktrace_windbg)
 endif(MSVC)
-target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} TgBot dl
-    ${Boost_LIBRARIES} SQLite::SQLite3 ${REACTOR_PARSER_LIB})
+target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} Td::TdStatic dl
+    ${Boost_LIBRARIES} SQLite::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
 
-target_compile_features(reactor_kun_core PUBLIC cxx_std_20)
-#target_compile_options(reactor_kun_core PUBLIC
-#          $<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>
-#          $<$<CXX_COMPILER_ID:Clang,GNU>:-Wall -Wextra -pedantic -Werror>
-#          $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-#      )
+target_compile_options(reactor_kun_core PUBLIC
+          #$<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>
+          $<$<CXX_COMPILER_ID:Clang,GNU>:-Wall -Wextra -pedantic>
+          $<$<CXX_COMPILER_ID:MSVC>:/W4>
+      )
 
 # IDEs should put the headers in a nice place
 source_group(

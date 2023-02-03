@@ -1,18 +1,17 @@
 #include "BotDB.hpp"
-#include <inttypes.h>
-#include "Parser.hpp"
-#include <utility>
-#include <stdexcept>
-#include <sqlite3.h>
-#include <plog/Log.h>
 #include "AuxiliaryFunctions.hpp"
+#include <inttypes.h>
+#include <plog/Log.h>
+#include <sqlite3.h>
+#include <stdexcept>
+#include <utility>
 
 class Connection
 {
-public:
+  public:
     Connection(std::string path, int flags)
     {
-        if(sqlite3_open_v2(path.c_str(), &_connection, flags, nullptr) != SQLITE_OK)
+        if (sqlite3_open_v2(path.c_str(), &_connection, flags, nullptr) != SQLITE_OK)
         {
             throw std::runtime_error("Can't open/cteate db: " + path);
         }
@@ -32,13 +31,13 @@ public:
 
     friend PreparedStatment;
 
-private:
+  private:
     sqlite3 *_connection = nullptr;
 };
 
 class PreparedStatment
 {
-public:
+  public:
     PreparedStatment(Connection &db, std::string_view zSql)
     {
         if (zSql.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
@@ -46,8 +45,8 @@ public:
             throw std::runtime_error("Sql query is too large");
         }
         int counter = 0;
-        while (sqlite3_prepare_v2(db._connection, zSql.data(), static_cast<int>(zSql.size()),
-                                  &_statment, nullptr) != SQLITE_OK)
+        while (sqlite3_prepare_v2(db._connection, zSql.data(), static_cast<int>(zSql.size()), &_statment, nullptr) !=
+               SQLITE_OK)
         {
             if (++counter > 10)
             {
@@ -85,8 +84,7 @@ public:
 
     void bindText(int pos, std::string_view value)
     {
-        if (sqlite3_bind_text64(_statment, pos, value.data(), value.size(),
-                                SQLITE_TRANSIENT, SQLITE_UTF8) != SQLITE_OK)
+        if (sqlite3_bind_text64(_statment, pos, value.data(), value.size(), SQLITE_TRANSIENT, SQLITE_UTF8) != SQLITE_OK)
         {
             throw std::runtime_error("Can't bind text to PreparedStatment");
         }
@@ -114,7 +112,7 @@ public:
         }
         if (res != SQLITE_ROW && res != SQLITE_DONE)
         {
-           throw std::runtime_error(sqlite3_errmsg(_connection));
+            throw std::runtime_error(sqlite3_errmsg(_connection));
         }
         if (_beforeFirst)
         {
@@ -130,7 +128,8 @@ public:
 
     void execute()
     {
-        while (next());
+        while (next())
+            ;
     }
 
     int getInt(int col) const noexcept
@@ -145,7 +144,7 @@ public:
 
     std::string getText(int col) const noexcept
     {
-        auto text = reinterpret_cast<const char*>(sqlite3_column_text(_statment, col));
+        auto text = reinterpret_cast<const char *>(sqlite3_column_text(_statment, col));
         if (text)
         {
             return std::string(text);
@@ -163,56 +162,52 @@ public:
         return _afterLast;
     }
 
-private:
+  private:
     sqlite3_stmt *_statment = nullptr;
     sqlite3 *_connection;
     bool _beforeFirst = true;
     bool _afterLast = false;
-
 };
-
 
 BotDB::BotDB(std::string_view path)
 {
     _path = path;
-    if(sqlite3_threadsafe() == 0)
+    if (sqlite3_threadsafe() == 0)
     {
         throw std::runtime_error("Yours sqlite don't have multithread support");
     }
     Connection connection(std::string(path), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX);
 
     {
-        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS flags (NAME TEXT PRIMARY KEY NOT NULL," \
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS flags (NAME TEXT PRIMARY KEY NOT NULL,"
                                           " VALUE TEXT NULL);");
         stmt.execute();
     }
 
     {
-        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS listeners (ID INTEGER PRIMARY KEY NOT NULL," \
-                                          " USERNAME TEXT NULL," \
-                                          " FIRST_NAME TEXT NULL," \
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS listeners (ID INTEGER PRIMARY KEY NOT NULL,"
+                                          " USERNAME TEXT NULL,"
+                                          " FIRST_NAME TEXT NULL,"
                                           " LAST_NAME TEXT NULL);");
         stmt.execute();
     }
 
     {
-        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_data (ID INTEGER NOT NULL," \
-                                          " TYPE INTEGER NOT NULL," \
-                                          " TEXT TEXT NULL," \
+        PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_data (ID INTEGER NOT NULL,"
+                                          " TYPE INTEGER NOT NULL,"
+                                          " TEXT TEXT NULL,"
                                           " DATA TEXT NULL);");
         stmt.execute();
     }
 
-    PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_urls (ID INTEGER PRIMARY KEY NOT NULL," \
-                                      " URL TEXT NOT NULL," \
-                                      " TAGS TEXT NOT NULL," \
+    PreparedStatment stmt(connection, "CREATE TABLE IF NOT EXISTS reactor_urls (ID INTEGER PRIMARY KEY NOT NULL,"
+                                      " URL TEXT NOT NULL,"
+                                      " TAGS TEXT NOT NULL,"
                                       " SENT INTEGER NOT NULL);");
     stmt.execute();
-
 }
 
-bool BotDB::newListener(int64_t id, std::string_view username,
-                        std::string_view firstName, std::string_view lastName)
+bool BotDB::newListener(int64_t id, std::string_view username, std::string_view firstName, std::string_view lastName)
 {
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -270,14 +265,14 @@ void BotDB::deleteOldReactorPosts(int limit)
     {
         int forDelete = count - limit;
         {
-            PreparedStatment stmt(connection,
-                                  "DELETE FROM reactor_data WHERE ID IN (SELECT ID FROM reactor_urls order by ROWID limit ?);");
+            PreparedStatment stmt(
+                connection,
+                "DELETE FROM reactor_data WHERE ID IN (SELECT ID FROM reactor_urls order by ROWID limit ?);");
             stmt.bindInt(1, forDelete);
             stmt.execute();
         }
-        PreparedStatment stmt(connection,
-                              "DELETE FROM reactor_urls WHERE ID IN " \
-                              "(SELECT ID FROM reactor_urls order by ROWID limit ?);");
+        PreparedStatment stmt(connection, "DELETE FROM reactor_urls WHERE ID IN "
+                                          "(SELECT ID FROM reactor_urls order by ROWID limit ?);");
         stmt.bindInt(1, forDelete);
         stmt.execute();
     }
@@ -300,7 +295,7 @@ bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tag
     return connection.changes();
 }
 
-bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, const char* data)
+bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, const char *data)
 {
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -337,9 +332,8 @@ std::queue<std::shared_ptr<BotMessage>> BotDB::getNotSentReactorPosts()
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
     PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls WHERE SENT = 0;");
-    PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
-                                   "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
-
+    PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN"
+                                               "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
 
     PLOGI << "New posts: " << _accumulateMessages(resultSetUrls, resultSetData, result);
 
@@ -352,27 +346,25 @@ std::queue<std::shared_ptr<BotMessage>> BotDB::getLatestReactorPost()
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
     PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS FROM reactor_urls order by ROWID DESC limit 1;");
-    PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN" \
+    PreparedStatment resultSetData(connection,
+                                   "SELECT * FROM reactor_data WHERE ID IN"
                                    "(SELECT ID FROM reactor_urls order by ROWID DESC limit 1) order by ID;");
-
 
     _accumulateMessages(resultSetUrls, resultSetData, result);
     return result;
 }
 
-size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
-                               PreparedStatment &resultSetData,
-                               std::queue<std::shared_ptr<BotMessage>> &accumulator)
+size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls, PreparedStatment &resultSetData,
+                                  std::queue<std::shared_ptr<BotMessage>> &accumulator)
 {
     size_t count{0};
-    while(resultSetUrls.next())
-   {
+    while (resultSetUrls.next())
+    {
         ++count;
         int64_t id = resultSetUrls.getInt64(0);
 
         std::string tags = resultSetUrls.getText(2);
-        accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1),
-                                                  tags));
+        accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1), tags));
 
         if (resultSetData.isBeforeFirst())
         {
@@ -397,8 +389,7 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls,
                 {
                     accumulator.emplace(new DataMessage(type, resultSetData.getText(3)));
                 }
-            }
-            while (resultSetData.next());
+            } while (resultSetData.next());
         }
         accumulator.emplace(new PostFooterMessage(tags));
     }
@@ -439,14 +430,13 @@ bool BotDB::setCurrentReactorPath(std::string_view path)
             }
         }
     }
-    PreparedStatment stmt(connection,
-                          "INSERT OR REPLACE INTO flags (NAME, VALUE) VALUES (\"ReactorPath\", ?);");
+    PreparedStatment stmt(connection, "INSERT OR REPLACE INTO flags (NAME, VALUE) VALUES (\"ReactorPath\", ?);");
     stmt.bindText(1, path);
     stmt.execute();
     return false;
 }
 
-BotDB& BotDB::getBotDB()
+BotDB &BotDB::getBotDB()
 {
     static BotDB botDB("./reactor_kun.db");
     return botDB;

@@ -1,10 +1,9 @@
 #include "BotMessage.hpp"
-#include "Parser.hpp"
-#include "TgLimits.hpp"
-#include <tgbot/tools/StringTools.h>
-#include "FileManager.hpp"
 #include "AuxiliaryFunctions.hpp"
+#include "FileManager.hpp"
+#include "Parser.hpp"
 #include "Signature.hpp"
+#include "TgLimits.hpp"
 
 #include <regex>
 
@@ -20,21 +19,41 @@ ElementType BotMessage::getType() const
     return _type;
 }
 
-BotMessage::BotMessage(ElementType type): _type(type)
+BotMessage::BotMessage(ElementType type) : _type(type)
 {
 }
 
-TextMessage::TextMessage(std::string_view text): BotMessage(ElementType::TEXT), _text(text)
+std::string_view BotMessage::getText() const
+{
+    return "";
+}
+std::string_view BotMessage::getUrl() const
+{
+    return "";
+}
+std::string BotMessage::getFilePath() const
+{
+    return "";
+}
+std::string_view BotMessage::getTags() const
+{
+    return "";
+}
+std::string_view BotMessage::getSignature() const
+{
+    return "";
+}
+
+TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::TEXT), _text(text)
 {
 }
 
-const std::string& TextMessage::getText() const
+std::string_view TextMessage::getText() const
 {
     return _text;
 }
 
-DataMessage::DataMessage(ElementType type, std::string_view url):
-    BotMessage(type), _url(url)
+DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(type), _url(url)
 {
     if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
     {
@@ -53,7 +72,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
 
         auto pos = _url.rfind("/");
         _fileName = _url.substr(pos + 1);
-        _url = _url.substr(0, pos + 1) + StringTools::urlEncode(_fileName);
+        _url = _url.substr(0, pos + 1) + urlEncode(_fileName);
 
         ContentInfo info = Parser::getContentInfo(_url);
 
@@ -64,37 +83,36 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
 
         switch (_type)
         {
-            case ElementType::IMG:
-                if (info.size <= photoSizeLimit && info.type == "image/jpeg")
-                {
-                    break;
-                }
-                _type = ElementType::DOCUMENT;
-                [[fallthrough]];
-            case ElementType::DOCUMENT:
+        case ElementType::IMG:
+            if (info.size <= photoSizeLimit && info.type == "image/jpeg")
             {
-                if (info.size > fileSizeLimit)
-                {
-                    _fileName.clear();
-                    _type = ElementType::URL;
-                    return;
-                }
+                break;
             }
+            _type = ElementType::DOCUMENT;
+            [[fallthrough]];
+        case ElementType::DOCUMENT: {
+            if (info.size > fileSizeLimit)
+            {
+                _fileName.clear();
+                _type = ElementType::URL;
+                return;
+            }
+        }
+        default:;
         }
 
         if (_downloadingEnable)
         {
             auto &fileManager = FileManager::getInstance();
             FileStatus status;
-            while((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY);
+            while ((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY)
+                ;
             if (status == FileStatus::READY)
             {
-                _mimeType = info.type;
                 if (_type == ElementType::IMG)
                 {
                     auto res = getJpegResolution(getFilePath());
-                    if (res.width > TgLimits::maxPhotoDimension
-                            || res.height > TgLimits::maxPhotoDimension)
+                    if (res.width > TgLimits::maxPhotoDimension || res.height > TgLimits::maxPhotoDimension)
                     {
                         _type = ElementType::DOCUMENT;
                     }
@@ -114,64 +132,57 @@ DataMessage::~DataMessage()
     }
 }
 
-ElementType DataMessage::getType() const
-{
-    return _type;
-}
-
-const std::string& DataMessage::getUrl() const
+std::string_view DataMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string DataMessage::getFilePath() const
+std::string DataMessage::getFilePath() const
 {
+    if (_fileName.empty())
+    {
+        return "";
+    }
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 
-const std::string& DataMessage::getMimeType() const
-{
-    return _mimeType;
-}
-
-PostHeaderMessage::PostHeaderMessage(): BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::HEADER)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags):
-    BotMessage(ElementType::HEADER), _url(url), _tags(tags)
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags)
+    : BotMessage(ElementType::HEADER), _url(url), _tags(tags)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(PostHeaderMessage&& source) noexcept
-    : BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage(PostHeaderMessage &&source) noexcept : BotMessage(ElementType::HEADER)
 {
     *this = std::move(source);
 }
 
-PostHeaderMessage& PostHeaderMessage::operator=(PostHeaderMessage&& source) noexcept
+PostHeaderMessage &PostHeaderMessage::operator=(PostHeaderMessage &&source) noexcept
 {
     _url = std::move(source._url);
     _tags = std::move(source._tags);
     return *this;
 }
 
-const std::string& PostHeaderMessage::getUrl() const
+std::string_view PostHeaderMessage::getUrl() const
 {
     return _url;
 }
 
-const std::string& PostHeaderMessage::getTags() const
+std::string_view PostHeaderMessage::getTags() const
 {
     return _tags;
 }
 
-PostFooterMessage::PostFooterMessage(const std::string &tags): BotMessage(ElementType::FOOTER)
+PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::FOOTER)
 {
     const static std::regex reg(R"(^.*(вирус|война|war|virus).*$)");
     static Signature sig;
 
-    if (std::regex_match(tags, reg))
+    if (std::regex_match(tags.data(), reg))
     {
         _signature = sig.get_end();
     }

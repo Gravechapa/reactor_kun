@@ -1,6 +1,5 @@
 #pragma once
 #include <mutex>
-#include "AuxiliaryFunctions.hpp"
 
 struct ContentInfo
 {
@@ -10,7 +9,7 @@ struct ContentInfo
 
 class Parser
 {
-public:
+  public:
     static void setup(std::string_view domain, std::string_view urlPath);
     static void setProxy(std::string_view address, std::string_view usePwd);
     static void init();
@@ -20,10 +19,10 @@ public:
     static ContentInfo getContentInfo(std::string_view link);
     static bool getContent(std::string_view link, std::string_view filePath);
 
-private:
+  private:
     static void _perform(CURL *curl);
 
-    static CURL * const _config;
+    static CURL *const _config;
 
     static std::string _domain;
     static std::string _urlPath;
