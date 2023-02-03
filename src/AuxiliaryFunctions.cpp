@@ -125,6 +125,7 @@ void configCurlProxy(CURL *curl, std::string_view address, std::string_view useP
     }
 }
 
+// https://github.com/reo7sp/tgbot-cpp/blob/4356f747596a42dd04766f9c7234fd1aded2eeda/src/tools/StringTools.cpp#L89
 std::string urlDecode(const std::string &value)
 {
     std::string result;
@@ -145,6 +146,7 @@ std::string urlDecode(const std::string &value)
     return result;
 }
 
+// https://github.com/reo7sp/tgbot-cpp/blob/4356f747596a42dd04766f9c7234fd1aded2eeda/src/tools/StringTools.cpp#L75
 std::string urlEncode(const std::string &value, const std::string &additionalLegitChars)
 {
     static const std::string legitPunctuation = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~:";

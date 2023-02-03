@@ -221,12 +221,11 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
 
         if (senderName != _config.getSU())
         {
-            _threadPool.addImgToSend({chatId}, "http://i3.kym-cdn.com/photos/images/newsfeed/000/544/719/a6c.png");
+            _threadPool.addImgToSend({chatId}, "https://i.imgflip.com/faw3z.jpg");
         }
         else
         {
-            _threadPool.addImgToSend(
-                {chatId}, "https://i1.wp.com/www.linuxstall.com/wp-content/uploads/2012/01/sudo_power_1.jpg");
+            _threadPool.addImgToSend({chatId}, "https://imgs.xkcd.com/comics/sandwich.png");
         }
         return;
     }
@@ -235,11 +234,10 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+/?$)");
     if (std::regex_match(text, reactorUrlRegex))
     {
-        /*if (text.back() == '/')
+        if (text.back() == '/')
         {
             text.pop_back();
         }
-        auto postNumber = text.substr(text.rfind("/") + 1);*/
         SpinGuard tasksGuard(_mailerTasksLock);
         _mailerTasks.push(std::pair(chatId, text));
     }
