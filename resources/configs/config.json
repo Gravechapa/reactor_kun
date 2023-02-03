@@ -5,8 +5,11 @@
     "apiHash": "Application identifier hash for Telegram API access, which can be obtained at https://my.telegram.org.",
     "apiHash": "1234567890abcdef17192123252729312",
     
+    "token": "Telegtam bot token.",
     "token": "123456789:AABBCcDDE_FfGg0hhIi1JjkK2L3mm-NNOop",
-    "superUserName": "Gravechapa",
+    
+    "superUserName": "Your telegram username.",
+    "superUserName": "Name",
 
     "domain": "old or new",
     "domain": "old",
@@ -25,7 +28,9 @@
         "data": "котэ"
     },
 
-    "enableFilesDownloading": false,
+    "enableFilesDownloading": "If false, bot will be sending files by url.",
+    "enableFilesDownloading": "I don't recommend turning this off since sending by url have considerable limitations.",
+    "enableFilesDownloading": true,
 
     "proxy": "optional",
     "proxy": {
