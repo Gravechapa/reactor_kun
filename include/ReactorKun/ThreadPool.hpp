@@ -1,13 +1,13 @@
 #pragma once
+#include "BotMessage.hpp"
+#include <map>
 #include <mutex>
 #include <thread>
-#include <map>
-#include "BotMessage.hpp"
 
 class ReactorKun;
 class ThreadPool
 {
-public:
+  public:
     enum class Status
     {
         Pending,
@@ -18,16 +18,13 @@ public:
 
     ThreadPool(ReactorKun &bot);
 
-    void addPostsToSend(std::vector<int64_t> &&listeners,
-                        std::queue<std::shared_ptr<BotMessage>> &posts);
-    void addPostsToSend(std::vector<int64_t> &listeners,
-                        std::queue<std::shared_ptr<BotMessage>> &posts);
+    void addPostsToSend(std::vector<int64_t> &&listeners, std::queue<std::shared_ptr<BotMessage>> &posts);
+    void addPostsToSend(std::vector<int64_t> &listeners, std::queue<std::shared_ptr<BotMessage>> &posts);
     void addTextToSend(std::vector<int64_t> &&listeners, std::string_view text);
     void addImgToSend(std::vector<int64_t> &&listeners, std::string_view url);
     void setStatus(int64_t listener, Status status, int32_t wait = 30);
 
-private:
-
+  private:
     struct SendingQueue
     {
         std::mutex timeLock;
@@ -42,15 +39,18 @@ private:
     struct Task
     {
         Task(int64_t listener_, std::unique_lock<std::mutex> &&timeLock_,
-             std::chrono::high_resolution_clock::time_point &lastSend_,
-             Status &status_, std::shared_ptr<BotMessage> &message_) noexcept:
-            listener(listener_), timeLock(std::move(timeLock_)),
-            lastSend(lastSend_), status(status_), message(message_){}
+             std::chrono::high_resolution_clock::time_point &lastSend_, Status &status_,
+             std::shared_ptr<BotMessage> &message_) noexcept
+            : listener(listener_), timeLock(std::move(timeLock_)), lastSend(lastSend_), status(status_),
+              message(message_)
+        {
+        }
 
-        Task(Task&& source) noexcept:
-        listener(source.listener), timeLock(std::move(source.timeLock)),
-        lastSend(source.lastSend), status(source.status),
-        message(source.message){}
+        Task(Task &&source) noexcept
+            : listener(source.listener), timeLock(std::move(source.timeLock)), lastSend(source.lastSend),
+              status(source.status), message(source.message)
+        {
+        }
 
         const int64_t listener;
         std::unique_lock<std::mutex> timeLock;
@@ -58,9 +58,9 @@ private:
         Status &status;
         std::shared_ptr<BotMessage> &message;
 
-    private:
-        Task(const Task&) = delete;
-        const Task& operator=(const Task&) = delete;
+      private:
+        Task(const Task &) = delete;
+        const Task &operator=(const Task &) = delete;
     };
 
     void _sender(std::stop_token stoken);

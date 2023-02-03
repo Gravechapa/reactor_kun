@@ -1,6 +1,6 @@
 #include "SpinGuard.hpp"
 
-SpinGuard::SpinGuard(std::atomic_flag &flag): _flag(flag)
+SpinGuard::SpinGuard(std::atomic_flag &flag) : _flag(flag)
 {
     lock();
 }
@@ -14,7 +14,8 @@ void SpinGuard::lock()
 {
     if (!_owned)
     {
-        while(_flag.test_and_set(std::memory_order_acquire));
+        while (_flag.test_and_set(std::memory_order_acquire))
+            ;
         _owned = true;
     }
 }

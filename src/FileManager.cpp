@@ -39,19 +39,19 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
     std::lock_guard counterLock(data->second);
     switch (data->first)
     {
-        case FileState::DELETED:
-            return FileStatus::NOTREADY;
-        case FileState::NOTLOADED:
-            if (!Parser::getContent(link, _folderPath.string() + "/" + fileName.data()))
-            {
-                fs::remove(_folderPath.string() + "/" + it->first);
-                return FileStatus::ERROR;
-            }
-            data->first = 1;
-            break;
-        default:
-            data->first += 1;
-            break;
+    case FileState::DELETED:
+        return FileStatus::NOTREADY;
+    case FileState::NOTLOADED:
+        if (!Parser::getContent(link, _folderPath.string() + "/" + fileName.data()))
+        {
+            fs::remove(_folderPath.string() + "/" + it->first);
+            return FileStatus::ERROR;
+        }
+        data->first = 1;
+        break;
+    default:
+        data->first += 1;
+        break;
     }
     return FileStatus::READY;
 }
@@ -69,34 +69,34 @@ void FileManager::releaseFile(std::string_view fileName)
 void FileManager::collectGarbage()
 {
     SpinGuard lockGuard(_lock);
-    for(auto it = _index.begin(); it != _index.end();)
+    for (auto it = _index.begin(); it != _index.end();)
     {
         std::unique_lock counterLock(it->second->second, std::try_to_lock);
         if (counterLock.owns_lock())
         {
             switch (it->second->first)
             {
-                case 0:
-                    fs::remove(_folderPath.string() + "/" + it->first);
-                    [[fallthrough]];
-                case FileState::NOTLOADED:
-                    it->second->first = FileState::DELETED;
-                    counterLock.unlock();
-                    counterLock.release();
-                    it = _index.erase(it);
-                    continue;
+            case 0:
+                fs::remove(_folderPath.string() + "/" + it->first);
+                [[fallthrough]];
+            case FileState::NOTLOADED:
+                it->second->first = FileState::DELETED;
+                counterLock.unlock();
+                counterLock.release();
+                it = _index.erase(it);
+                continue;
             }
         }
         ++it;
     }
 }
 
-const fs::path& FileManager::getDir() const
+const fs::path &FileManager::getDir() const
 {
     return _folderPath;
 }
 
-FileManager& FileManager::getInstance()
+FileManager &FileManager::getInstance()
 {
     static FileManager fileManager("data/");
     return fileManager;

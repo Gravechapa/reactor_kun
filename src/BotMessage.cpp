@@ -1,10 +1,9 @@
 #include "BotMessage.hpp"
-#include "Parser.hpp"
-#include "TgLimits.hpp"
 #include "AuxiliaryFunctions.hpp"
 #include "FileManager.hpp"
-#include "AuxiliaryFunctions.hpp"
+#include "Parser.hpp"
 #include "Signature.hpp"
+#include "TgLimits.hpp"
 
 #include <regex>
 
@@ -20,7 +19,7 @@ ElementType BotMessage::getType() const
     return _type;
 }
 
-BotMessage::BotMessage(ElementType type): _type(type)
+BotMessage::BotMessage(ElementType type) : _type(type)
 {
 }
 
@@ -45,7 +44,7 @@ std::string_view BotMessage::getSignature() const
     return "";
 }
 
-TextMessage::TextMessage(std::string_view text): BotMessage(ElementType::TEXT), _text(text)
+TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::TEXT), _text(text)
 {
 }
 
@@ -54,8 +53,7 @@ std::string_view TextMessage::getText() const
     return _text;
 }
 
-DataMessage::DataMessage(ElementType type, std::string_view url):
-    BotMessage(type), _url(url)
+DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(type), _url(url)
 {
     if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
     {
@@ -85,37 +83,36 @@ DataMessage::DataMessage(ElementType type, std::string_view url):
 
         switch (_type)
         {
-            case ElementType::IMG:
-                if (info.size <= photoSizeLimit && info.type == "image/jpeg")
-                {
-                    break;
-                }
-                _type = ElementType::DOCUMENT;
-                [[fallthrough]];
-            case ElementType::DOCUMENT:
+        case ElementType::IMG:
+            if (info.size <= photoSizeLimit && info.type == "image/jpeg")
             {
-                if (info.size > fileSizeLimit)
-                {
-                    _fileName.clear();
-                    _type = ElementType::URL;
-                    return;
-                }
+                break;
             }
-            default:;
+            _type = ElementType::DOCUMENT;
+            [[fallthrough]];
+        case ElementType::DOCUMENT: {
+            if (info.size > fileSizeLimit)
+            {
+                _fileName.clear();
+                _type = ElementType::URL;
+                return;
+            }
+        }
+        default:;
         }
 
         if (_downloadingEnable)
         {
             auto &fileManager = FileManager::getInstance();
             FileStatus status;
-            while((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY);
+            while ((status = fileManager.getFile(_url, _fileName)) == FileStatus::NOTREADY)
+                ;
             if (status == FileStatus::READY)
             {
                 if (_type == ElementType::IMG)
                 {
                     auto res = getJpegResolution(getFilePath());
-                    if (res.width > TgLimits::maxPhotoDimension
-                            || res.height > TgLimits::maxPhotoDimension)
+                    if (res.width > TgLimits::maxPhotoDimension || res.height > TgLimits::maxPhotoDimension)
                     {
                         _type = ElementType::DOCUMENT;
                     }
@@ -149,22 +146,21 @@ std::string DataMessage::getFilePath() const
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 
-PostHeaderMessage::PostHeaderMessage(): BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::HEADER)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags):
-    BotMessage(ElementType::HEADER), _url(url), _tags(tags)
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags)
+    : BotMessage(ElementType::HEADER), _url(url), _tags(tags)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(PostHeaderMessage&& source) noexcept
-    : BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage(PostHeaderMessage &&source) noexcept : BotMessage(ElementType::HEADER)
 {
     *this = std::move(source);
 }
 
-PostHeaderMessage& PostHeaderMessage::operator=(PostHeaderMessage&& source) noexcept
+PostHeaderMessage &PostHeaderMessage::operator=(PostHeaderMessage &&source) noexcept
 {
     _url = std::move(source._url);
     _tags = std::move(source._tags);
@@ -181,7 +177,7 @@ std::string_view PostHeaderMessage::getTags() const
     return _tags;
 }
 
-PostFooterMessage::PostFooterMessage(std::string_view tags): BotMessage(ElementType::FOOTER)
+PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::FOOTER)
 {
     const static std::regex reg(R"(^.*(вирус|война|war|virus).*$)");
     static Signature sig;

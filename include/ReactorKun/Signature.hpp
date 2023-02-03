@@ -1,17 +1,17 @@
 #pragma once
-#include <string>
 #include <array>
 #include <random>
+#include <string>
 
 class Signature
 {
-public:
+  public:
     Signature();
 
     std::string_view get_random();
     std::string_view get_end() const;
 
-private:
+  private:
     static const std::array<std::string, 38> _signatures;
 
     std::mt19937 _gen;

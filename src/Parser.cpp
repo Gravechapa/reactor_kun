@@ -1,31 +1,29 @@
 #include "Parser.hpp"
-#include "RustReactorParser.h"
 #include "AuxiliaryFunctions.hpp"
+#include "BotDB.hpp"
+#include "RustReactorParser.h"
 #include <fstream>
 #include <plog/Log.h>
-#include "BotDB.hpp"
 
 std::string Parser::_domain;
 std::string Parser::_urlPath;
 int Parser::_overload = 2000;
 
 std::mutex Parser::_lock;
-std::chrono::high_resolution_clock::time_point Parser::_timePoint =
-        std::chrono::high_resolution_clock::now();
+std::chrono::high_resolution_clock::time_point Parser::_timePoint = std::chrono::high_resolution_clock::now();
 const std::chrono::milliseconds Parser::_delay = std::chrono::milliseconds(10);
 
-CURL * const Parser::_config{curl_easy_init()};
+CURL *const Parser::_config{curl_easy_init()};
 
-bool newReactorUrlRaw(int64_t, const char* url, const char* tags, void* userData)
+bool newReactorUrlRaw(int64_t, const char *url, const char *tags, void *userData)
 {
-    static_cast<std::queue<std::shared_ptr<BotMessage>>*>(userData)->
-            emplace(new PostHeaderMessage(url, tags));
+    static_cast<std::queue<std::shared_ptr<BotMessage>> *>(userData)->emplace(new PostHeaderMessage(url, tags));
     return true;
 }
 
-bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data, void* userData)
+bool newReactorDataRaw(int64_t, int32_t type, const char *text, const char *data, void *userData)
 {
-    auto accumulator = static_cast<std::queue<std::shared_ptr<BotMessage>>*>(userData);
+    auto accumulator = static_cast<std::queue<std::shared_ptr<BotMessage>> *>(userData);
     std::string string(text);
 
     if (!string.empty())
@@ -43,30 +41,30 @@ bool newReactorDataRaw(int64_t, int32_t type, const char* text, const char* data
     return true;
 }
 
-void reactorLog(const char* text)
+void reactorLog(const char *text)
 {
     PLOGW << text;
 }
 
-bool newReactorUrl(int64_t id, const char* url, const char* tags, void*)
+bool newReactorUrl(int64_t id, const char *url, const char *tags, void *)
 {
     return BotDB::getBotDB().newReactorUrl(id, url, tags);
 }
 
-bool newReactorData(int64_t id, int32_t type, const char* text, const char* data, void*)
+bool newReactorData(int64_t id, int32_t type, const char *text, const char *data, void *)
 {
     return BotDB::getBotDB().newReactorData(id, static_cast<ElementType>(type), text, data);
 }
 
 size_t WriteCallback(char *contents, size_t size, size_t nmemb, void *userp)
 {
-    static_cast<std::string*>(userp)->append(contents, size * nmemb);
+    static_cast<std::string *>(userp)->append(contents, size * nmemb);
     return size * nmemb;
 }
 
 size_t WriteFileCallback(char *contents, size_t size, size_t nmemb, void *userp)
 {
-    static_cast<std::ofstream*>(userp)->write(contents, size * nmemb);
+    static_cast<std::ofstream *>(userp)->write(contents, size * nmemb);
     return size * nmemb;
 }
 
@@ -103,8 +101,7 @@ std::queue<std::shared_ptr<BotMessage>> Parser::getPostByURL(std::string_view li
 
     _perform(curl);
 
-    if (!get_page_content(link.data(), html.c_str(), &newReactorUrlRaw, &newReactorDataRaw,
-                          nullptr, &post, false))
+    if (!get_page_content(link.data(), html.c_str(), &newReactorUrlRaw, &newReactorDataRaw, nullptr, &post, false))
     {
         PLOGW << "There were some issues when processing the page: " << link;
     }
@@ -152,8 +149,8 @@ void Parser::update(int32_t lim)
         curl_easy_setopt(curl, CURLOPT_URL, nextUrl.c_str());
         _perform(curl);
 
-        if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData,
-                              &nextPageUrl, nullptr, false))
+        if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData, &nextPageUrl, nullptr,
+                              false))
         {
             PLOGW << "There were some issues when processing the page: " << nextUrl;
             if (!nextPageUrl.url)
@@ -165,17 +162,16 @@ void Parser::update(int32_t lim)
         nextUrl = nextPageUrl.url;
         get_page_content_cleanup(&nextPageUrl);
 
-        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload
-                || (lim > 0 && nextPageUrl.counter >= lim))
+        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload ||
+            (lim > 0 && nextPageUrl.counter >= lim))
         {
-            PLOGD << "Update completed: " << nextPageUrl.coincidenceCounter
-                  << ", " << nextPageUrl.counter;
+            PLOGD << "Update completed: " << nextPageUrl.coincidenceCounter << ", " << nextPageUrl.counter;
             goto exit;
         }
     }
 
-    exit:
-        curl_easy_cleanup(curl);
+exit:
+    curl_easy_cleanup(curl);
 }
 
 ContentInfo Parser::getContentInfo(std::string_view link)
@@ -229,15 +225,14 @@ void Parser::_perform(CURL *curl)
 
     int counter = 0;
     CURLcode result;
-    while((result = curl_easy_perform(curl)) != CURLE_OK)
+    while ((result = curl_easy_perform(curl)) != CURLE_OK)
     {
         if (++counter > 10)
         {
             curl_easy_cleanup(curl);
             throw std::runtime_error("Curl error: " + std::string(curl_easy_strerror(result)));
         }
-        PLOGW << "Curl issue: " << curl_easy_strerror(result)
-                  << " Retrying: " << counter;
+        PLOGW << "Curl issue: " << curl_easy_strerror(result) << " Retrying: " << counter;
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
