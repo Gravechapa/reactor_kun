@@ -20,7 +20,7 @@ class Parser
     static bool getContent(std::string_view link, std::string_view filePath);
 
   private:
-    static void _perform(CURL *curl);
+    static void _perform(CURL *curl, std::ofstream *const file = nullptr);
 
     static CURL *const _config;
 

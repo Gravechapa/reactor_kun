@@ -207,7 +207,7 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
     curl_easy_setopt(curl, CURLOPT_REFERER, _domain.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteFileCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
-    _perform(curl);
+    _perform(curl, &file);
     curl_easy_cleanup(curl);
     if (file.fail())
     {
@@ -217,16 +217,27 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
     return true;
 }
 
-void Parser::_perform(CURL *curl)
+void Parser::_perform(CURL *curl, std::ofstream *const file)
 {
     std::unique_lock lockGuard(_lock);
     wait(_delay, _timePoint);
     lockGuard.unlock();
 
     int counter = 0;
-    CURLcode result;
-    while ((result = curl_easy_perform(curl)) != CURLE_OK)
+    while (true)
     {
+        auto result = curl_easy_perform(curl);
+        if (result == CURLE_OK)
+        {
+            return;
+        }
+        if (result == CURLE_PARTIAL_FILE)
+        {
+            curl_easy_setopt(curl, CURLOPT_RESUME_FROM, file->tellp());
+            PLOGW << "Curl issue: " << curl_easy_strerror(result)
+                  << ". Probably a bad connection. Resuming from: " << file->tellp();
+            continue;
+        }
         if (++counter > 10)
         {
             curl_easy_cleanup(curl);
