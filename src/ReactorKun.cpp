@@ -22,7 +22,7 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     {
         throw std::runtime_error("Can't get bot info");
     }
-    _botName = user.value()->username_;
+    _botName = user.value()->usernames_->editable_username_;
     _client.setCommands(COMMANDS);
 
     Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
@@ -117,7 +117,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
             {
                 std::runtime_error("Can't get user info for: " + std::to_string(senderId));
             }
-            senderName = user.value()->username_;
+            senderName = user.value()->usernames_->editable_username_;
         }
     }
 
@@ -136,7 +136,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         {
             std::runtime_error("Can't get user info for: " + std::to_string(userId));
         }
-        username = user.value()->username_;
+        username = user.value()->usernames_->editable_username_;
         senderName = username;
         firstName = user.value()->first_name_;
         lastName = user.value()->last_name_;
@@ -151,7 +151,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         {
             std::runtime_error("Can't get supergroup info for: " + std::to_string(supergroupId));
         }
-        username = supergroup.value()->username_;
+        username = supergroup.value()->usernames_->editable_username_;
         firstName = chat.value()->title_;
         break;
     }

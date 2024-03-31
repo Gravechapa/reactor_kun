@@ -220,16 +220,17 @@ std::optional<td_api::object_ptr<td_api::supergroup>> TgClient::getSupergroup(td
     return td_api::move_object_as<td_api::supergroup>(response);
 }
 
-std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(td_api::int53 chatId, const std::string &text,
-                                                                         TextType parseMode, bool disableWebPagePreview,
-                                                                         bool disableNotification,
-                                                                         td_api::int53 replyToMessageId,
-                                                                         td_api::int53 messageThreadId)
+std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(
+    td_api::int53 chatId, const std::string &text, TextType parseMode, bool disableWebPagePreview,
+    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
 {
     auto inputText = td_api::make_object<td_api::inputMessageText>();
-    inputText->disable_web_page_preview_ = disableWebPagePreview;
+    auto linkPreviewOptions = td_api::make_object<td_api::linkPreviewOptions>();
+    linkPreviewOptions->is_disabled_ = disableWebPagePreview;
+    inputText->link_preview_options_ = std::move(linkPreviewOptions);
     inputText->text_ = _parseText(text, parseMode);
-    auto response = _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputText));
+    auto response =
+        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputText));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -240,8 +241,8 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(td_api:
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
     td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&document,
     td_api::object_ptr<td_api::InputFile> &&thumbnail, const std::string &text, TextType parseMode,
-    bool disableContentTypeDetection, bool disableNotification, td_api::int53 replyToMessageId,
-    td_api::int53 messageThreadId)
+    bool disableContentTypeDetection, bool disableNotification,
+    td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
 {
     auto inputDocument = td_api::make_object<td_api::inputMessageDocument>();
     inputDocument->document_ = std::move(document);
@@ -257,7 +258,7 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
         inputDocument->caption_ = _parseText(text, parseMode);
     }
     auto response =
-        _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputDocument));
+        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputDocument));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -267,7 +268,7 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendPhoto(
     td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text, TextType parseMode,
-    bool disableNotification, td_api::int53 replyToMessageId, td_api::int53 messageThreadId)
+    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
 {
     auto inputPhoto = td_api::make_object<td_api::inputMessagePhoto>();
     inputPhoto->photo_ = std::move(photo);
@@ -275,7 +276,8 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendPhoto(
     {
         inputPhoto->caption_ = _parseText(text, parseMode);
     }
-    auto response = _sendMessage(chatId, messageThreadId, replyToMessageId, disableNotification, std::move(inputPhoto));
+    auto response =
+        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputPhoto));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -363,8 +365,9 @@ void TgClient::_updateHandler(td_api::object_ptr<td_api::Object> &update)
     case td_api::updateMessageSendFailed::ID: {
         auto fail = td_api::move_object_as<td_api::updateMessageSendFailed>(update);
         std::lock_guard lock(_mUpdateLock);
-        TgClient::MessageStatus ms = {fail->old_message_id_, fail->message_->chat_id_,
-                                      std::optional<TgClient::Error>(Error(fail->error_code_, fail->error_message_))};
+        TgClient::MessageStatus ms = {
+            fail->old_message_id_, fail->message_->chat_id_,
+            std::optional<TgClient::Error>(Error(fail->error_->code_, fail->error_->message_))};
         _messagesStatusesUpdates.emplace(std::move(ms));
         break;
     }
@@ -426,32 +429,6 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             _loggedIn = false;
             _restart = true;
             break;
-        case td_api::authorizationStateWaitEncryptionKey::ID: {
-            auto result = _send(td_api::make_object<td_api::setDatabaseEncryptionKey>("~ReactorKun~"));
-            auto error = _errorCheck(result);
-            if (error)
-            {
-                if (error.value() == 400)
-                {
-                    PLOGE << "Wrong database encryption key. Destroying database.";
-                    _sendWithoutResponse(td_api::make_object<td_api::destroy>());
-                    retry = false;
-                }
-                else
-                {
-                    if (retry)
-                    {
-                        throw std::runtime_error("Failed to set the database encryption key.");
-                    }
-                    retry = true;
-                }
-            }
-            else
-            {
-                retry = false;
-            }
-            break;
-        }
         case td_api::authorizationStateWaitPhoneNumber::ID: {
             auto result = _send(td_api::make_object<td_api::checkAuthenticationBotToken>(_config.getToken()));
             if (_errorCheck(result))
@@ -469,19 +446,9 @@ void TgClient::_authHandler(td_api::object_ptr<td_api::AuthorizationState> &&aut
             break;
         }
         case td_api::authorizationStateWaitTdlibParameters::ID: {
-            auto param = td_api::make_object<td_api::tdlibParameters>();
-            param->database_directory_ = "tdlib";
-            param->use_file_database_ = false;
-            param->use_chat_info_database_ = true;
-            param->use_message_database_ = false;
-            param->use_secret_chats_ = false;
-            param->api_id_ = _config.getApiId();
-            param->api_hash_ = _config.getApiHash();
-            param->system_language_code_ = "en";
-            param->device_model_ = "Desktop";
-            param->application_version_ = REACTORKUN_VERSION;
-            param->enable_storage_optimizer_ = true;
-            auto request = td_api::make_object<td_api::setTdlibParameters>(std::move(param));
+            auto request = td_api::make_object<td_api::setTdlibParameters>(
+                false, "tdlib", "", "~ReactorKun~", false, true, false, false, _config.getApiId(), _config.getApiHash(),
+                "en", "Desktop", "", REACTORKUN_VERSION);
             auto result = _send(std::move(request));
             if (_errorCheck(result))
             {
@@ -532,11 +499,12 @@ void TgClient::_run(std::stop_token stoken)
 }
 
 td_api::object_ptr<td_api::Object> TgClient::_sendMessage(td_api::int53 chatId, td_api::int53 messageThreadId,
-                                                          td_api::int53 replyToMessageId, bool disableNotification,
+                                                          td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo,
+                                                          bool disableNotification,
                                                           td_api::object_ptr<td_api::InputMessageContent> &&content)
 {
     auto options = td_api::make_object<td_api::messageSendOptions>();
     options->disable_notification_ = disableNotification;
-    return _sendWhenReady(td_api::make_object<td_api::sendMessage>(chatId, messageThreadId, replyToMessageId,
+    return _sendWhenReady(td_api::make_object<td_api::sendMessage>(chatId, messageThreadId, std::move(replyTo),
                                                                    std::move(options), nullptr, std::move(content)));
 }

@@ -48,21 +48,20 @@ class TgClient
     std::optional<td_api::object_ptr<td_api::user>> getUser(td_api::int53 userId);
     std::optional<td_api::object_ptr<td_api::supergroup>> getSupergroup(td_api::int53 supergroupId);
 
-    std::optional<td_api::object_ptr<td_api::message>> sendMessage(td_api::int53 chatId, const std::string &text,
-                                                                   TextType parseMode = TextType::Plain,
-                                                                   bool disableWebPagePreview = false,
-                                                                   bool disableNotification = false,
-                                                                   td_api::int53 replyToMessageId = 0,
-                                                                   td_api::int53 messageThreadId = 0);
+    std::optional<td_api::object_ptr<td_api::message>> sendMessage(
+        td_api::int53 chatId, const std::string &text, TextType parseMode = TextType::Plain,
+        bool disableWebPagePreview = false, bool disableNotification = false,
+        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr, td_api::int53 messageThreadId = 0);
     std::optional<td_api::object_ptr<td_api::message>> sendDocument(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&document,
         td_api::object_ptr<td_api::InputFile> &&thumbnail = nullptr, const std::string &text = "",
         TextType parseMode = TextType::Plain, bool disableContentTypeDetection = false,
-        bool disableNotification = false, td_api::int53 replyToMessageId = 0, td_api::int53 messageThreadId = 0);
+        bool disableNotification = false, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr,
+        td_api::int53 messageThreadId = 0);
     std::optional<td_api::object_ptr<td_api::message>> sendPhoto(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text = "",
-        TextType parseMode = TextType::Plain, bool disableNotification = false, td_api::int53 replyToMessageId = 0,
-        td_api::int53 messageThreadId = 0);
+        TextType parseMode = TextType::Plain, bool disableNotification = false,
+        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr, td_api::int53 messageThreadId = 0);
 
     template <size_t N> bool setCommands(const std::array<std::pair<const char *, const char *>, N> &commands);
 
@@ -81,7 +80,8 @@ class TgClient
     std::optional<int32_t> _errorCheck(td_api::object_ptr<td_api::Object> &obj);
     td_api::object_ptr<td_api::formattedText> _parseText(const std::string &text, TextType parseMode);
     td_api::object_ptr<td_api::Object> _sendMessage(td_api::int53 chatId, td_api::int53 messageThreadId,
-                                                    td_api::int53 replyToMessageId, bool disableNotification,
+                                                    td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo,
+                                                    bool disableNotification,
                                                     td_api::object_ptr<td_api::InputMessageContent> &&content);
 
     Config &_config;

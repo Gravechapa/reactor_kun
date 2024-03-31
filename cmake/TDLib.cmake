@@ -1,7 +1,7 @@
 FetchContent_Declare(
     tdlib
     GIT_REPOSITORY     https://github.com/tdlib/td.git
-    GIT_TAG            v1.8.0
+    GIT_TAG            b1b33cf42790ca10ef34abc2ac8828ae704f1f56
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/tdlib"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/tdlib-bin"
 )
