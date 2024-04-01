@@ -151,7 +151,10 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         {
             std::runtime_error("Can't get supergroup info for: " + std::to_string(supergroupId));
         }
-        username = supergroup.value()->usernames_->editable_username_;
+        if (supergroup.value()->usernames_)
+        {
+            username = supergroup.value()->usernames_->editable_username_;
+        }
         firstName = chat.value()->title_;
         break;
     }
