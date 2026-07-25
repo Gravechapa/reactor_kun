@@ -12,14 +12,9 @@ add_dependencies(reactor_kun_core reactor_parser)
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
-if(UNIX)
-    find_package(Boost REQUIRED COMPONENTS stacktrace_addr2line)
-endif(UNIX)
-if(MSVC)
-    find_package(Boost REQUIRED COMPONENTS stacktrace_windbg)
-endif(MSVC)
+
 target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} Td::TdStatic dl
-    ${Boost_LIBRARIES} SQLite3::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
+                      SQLite3::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
 
 target_compile_options(reactor_kun_core PUBLIC
           #$<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>
