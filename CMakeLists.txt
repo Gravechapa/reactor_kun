@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.16...3.23)
+cmake_minimum_required(VERSION 3.16)
 
-project(ReactorKun VERSION 2.1
+project(ReactorKun VERSION 2.2
                     DESCRIPTION "Joyreactor bot"
-                    LANGUAGES CXX)
+                    LANGUAGES CXX C)
 add_compile_definitions(REACTORKUN_VERSION="${ReactorKun_VERSION}")
 
 message(STATUS "Start configuring project ${CMAKE_PROJECT_NAME}")
@@ -38,9 +38,11 @@ include(CheckIPOSupported)
 add_subdirectory(src)
 add_subdirectory(apps)
 
-check_ipo_supported(RESULT result)
+check_ipo_supported(RESULT result OUTPUT output)
 if(result)
   set_target_properties(reactor_kun reactor_kun_core PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+  message(WARNING "IPO is not supported: ${output}")
 endif()
 
 set_target_properties(reactor_kun reactor_kun_core
@@ -49,9 +51,10 @@ set_target_properties(reactor_kun reactor_kun_core
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     CXX_EXTENSIONS OFF
-    CXX_STANDARD 20
+    CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
     COMPILE_WARNING_AS_ERROR ON
+    EXPORT_COMPILE_COMMANDS ON
 )
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")

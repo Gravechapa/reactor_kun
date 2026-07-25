@@ -19,7 +19,7 @@ if(MSVC)
     find_package(Boost REQUIRED COMPONENTS stacktrace_windbg)
 endif(MSVC)
 target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} Td::TdStatic dl
-    ${Boost_LIBRARIES} SQLite::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
+    ${Boost_LIBRARIES} SQLite3::SQLite3 CURL::libcurl ${REACTOR_PARSER_LIB})
 
 target_compile_options(reactor_kun_core PUBLIC
           #$<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>

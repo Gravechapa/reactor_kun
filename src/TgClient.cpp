@@ -139,8 +139,9 @@ void TgClient::_setProxy()
         type = td_api::make_object<td_api::proxyTypeSocks5>(_config.getProxyUser().data(),
                                                             _config.getProxyPassword().data());
     }
-    auto result = _send(td_api::make_object<td_api::addProxy>(_config.getProxyAddress().data(), _config.getProxyPort(),
-                                                              true, std::move(type)));
+    auto result = _send(td_api::make_object<td_api::addProxy>(
+        td_api::make_object<td_api::proxy>(_config.getProxyAddress().data(), _config.getProxyPort(), std::move(type)),
+        true, ""));
     if (_errorCheck(result))
     {
         throw std::runtime_error("Can't set proxy.");
@@ -154,7 +155,7 @@ void TgClient::_clearProxy()
     {
         throw std::runtime_error("Can't get proxies list.");
     }
-    auto proxies = td_api::move_object_as<td_api::proxies>(response);
+    auto proxies = td_api::move_object_as<td_api::addedProxies>(response);
     for (auto &proxy : proxies->proxies_)
     {
         response = _send(td_api::make_object<td_api::removeProxy>(proxy->id_));
@@ -222,15 +223,14 @@ std::optional<td_api::object_ptr<td_api::supergroup>> TgClient::getSupergroup(td
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendMessage(
     td_api::int53 chatId, const std::string &text, TextType parseMode, bool disableWebPagePreview,
-    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
+    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
 {
     auto inputText = td_api::make_object<td_api::inputMessageText>();
     auto linkPreviewOptions = td_api::make_object<td_api::linkPreviewOptions>();
     linkPreviewOptions->is_disabled_ = disableWebPagePreview;
     inputText->link_preview_options_ = std::move(linkPreviewOptions);
     inputText->text_ = _parseText(text, parseMode);
-    auto response =
-        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputText));
+    auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputText));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -242,23 +242,23 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
     td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&document,
     td_api::object_ptr<td_api::InputFile> &&thumbnail, const std::string &text, TextType parseMode,
     bool disableContentTypeDetection, bool disableNotification,
-    td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
+    td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
 {
     auto inputDocument = td_api::make_object<td_api::inputMessageDocument>();
-    inputDocument->document_ = std::move(document);
-    inputDocument->disable_content_type_detection_ = disableContentTypeDetection;
+    inputDocument->document_ = td_api::make_object<td_api::inputDocument>();
+    inputDocument->document_->document_ = std::move(document);
+    inputDocument->document_->disable_content_type_detection_ = disableContentTypeDetection;
     if (thumbnail)
     {
         auto inputThumbnail = td_api::make_object<td_api::inputThumbnail>();
         inputThumbnail->thumbnail_ = std::move(thumbnail);
-        inputDocument->thumbnail_ = std::move(inputThumbnail);
+        inputDocument->document_->thumbnail_ = std::move(inputThumbnail);
     }
     if (!text.empty())
     {
         inputDocument->caption_ = _parseText(text, parseMode);
     }
-    auto response =
-        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputDocument));
+    auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputDocument));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -268,16 +268,16 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendPhoto(
     td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text, TextType parseMode,
-    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo, td_api::int53 messageThreadId)
+    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
 {
     auto inputPhoto = td_api::make_object<td_api::inputMessagePhoto>();
-    inputPhoto->photo_ = std::move(photo);
+    inputPhoto->photo_ = td_api::make_object<td_api::inputPhoto>();
+    inputPhoto->photo_->photo_ = std::move(photo);
     if (!text.empty())
     {
         inputPhoto->caption_ = _parseText(text, parseMode);
     }
-    auto response =
-        _sendMessage(chatId, messageThreadId, std::move(replyTo), disableNotification, std::move(inputPhoto));
+    auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputPhoto));
     if (_errorCheck(response))
     {
         return std::nullopt;
@@ -498,13 +498,13 @@ void TgClient::_run(std::stop_token stoken)
     }
 }
 
-td_api::object_ptr<td_api::Object> TgClient::_sendMessage(td_api::int53 chatId, td_api::int53 messageThreadId,
+td_api::object_ptr<td_api::Object> TgClient::_sendMessage(td_api::int53 chatId,
                                                           td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo,
                                                           bool disableNotification,
                                                           td_api::object_ptr<td_api::InputMessageContent> &&content)
 {
     auto options = td_api::make_object<td_api::messageSendOptions>();
     options->disable_notification_ = disableNotification;
-    return _sendWhenReady(td_api::make_object<td_api::sendMessage>(chatId, messageThreadId, std::move(replyTo),
+    return _sendWhenReady(td_api::make_object<td_api::sendMessage>(chatId, nullptr, std::move(replyTo),
                                                                    std::move(options), nullptr, std::move(content)));
 }

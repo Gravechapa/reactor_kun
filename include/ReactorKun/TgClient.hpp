@@ -25,7 +25,7 @@ class TgClient
   public:
     struct Error
     {
-        Error(int32_t code_, std::string message_) : code(code_), message(message_){};
+        Error(int32_t code_, std::string message_) : code(code_), message(message_) {};
         const int32_t code;
         const std::string message;
     };
@@ -51,17 +51,16 @@ class TgClient
     std::optional<td_api::object_ptr<td_api::message>> sendMessage(
         td_api::int53 chatId, const std::string &text, TextType parseMode = TextType::Plain,
         bool disableWebPagePreview = false, bool disableNotification = false,
-        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr, td_api::int53 messageThreadId = 0);
+        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
     std::optional<td_api::object_ptr<td_api::message>> sendDocument(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&document,
         td_api::object_ptr<td_api::InputFile> &&thumbnail = nullptr, const std::string &text = "",
         TextType parseMode = TextType::Plain, bool disableContentTypeDetection = false,
-        bool disableNotification = false, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr,
-        td_api::int53 messageThreadId = 0);
+        bool disableNotification = false, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
     std::optional<td_api::object_ptr<td_api::message>> sendPhoto(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text = "",
         TextType parseMode = TextType::Plain, bool disableNotification = false,
-        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr, td_api::int53 messageThreadId = 0);
+        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
 
     template <size_t N> bool setCommands(const std::array<std::pair<const char *, const char *>, N> &commands);
 
@@ -79,7 +78,7 @@ class TgClient
     uint64_t _nextId();
     std::optional<int32_t> _errorCheck(td_api::object_ptr<td_api::Object> &obj);
     td_api::object_ptr<td_api::formattedText> _parseText(const std::string &text, TextType parseMode);
-    td_api::object_ptr<td_api::Object> _sendMessage(td_api::int53 chatId, td_api::int53 messageThreadId,
+    td_api::object_ptr<td_api::Object> _sendMessage(td_api::int53 chatId,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo,
                                                     bool disableNotification,
                                                     td_api::object_ptr<td_api::InputMessageContent> &&content);
@@ -108,7 +107,7 @@ template <size_t N> bool TgClient::setCommands(const std::array<std::pair<const 
     td_api::array<td_api::object_ptr<td_api::botCommand>> botCommands;
     for (auto &command : commands)
     {
-        botCommands.emplace_back(td_api::make_object<td_api::botCommand>(command.first, command.second));
+        botCommands.emplace_back(td_api::make_object<td_api::botCommand>(command.first, command.second, false));
     }
     auto result = _sendWhenReady(td_api::make_object<td_api::setCommands>(nullptr, "", std::move(botCommands)));
     return !_errorCheck(result);
