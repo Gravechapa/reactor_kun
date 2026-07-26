@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 
 project(ReactorKun VERSION 2.2
                     DESCRIPTION "Joyreactor bot"
@@ -32,6 +32,9 @@ include("cmake/UTF8String.cmake")
 
 message(STATUS "Fetching Plog")
 include("cmake/Plog.cmake")
+
+message(STATUS "Fetching Cpr")
+include("cmake/Cpr.cmake")
 ###############################################
 
 include(CheckIPOSupported)

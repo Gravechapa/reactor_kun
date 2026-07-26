@@ -28,7 +28,7 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
     if (_config.isProxyEnabledForReactor())
     {
-        Parser::setProxy(_config.getProxy(), _config.getProxyUsePwd());
+        Parser::setProxy(_config);
     }
     if (!BotDB::getBotDB().setCurrentReactorPath(urlDecode(_config.getReactorUrlPath())))
     {

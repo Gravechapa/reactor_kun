@@ -3,7 +3,6 @@
 #include "ReactorKun.hpp"
 #include <boost/stacktrace.hpp>
 #include <csignal>
-#include <curl/curl.h>
 #include <filesystem>
 #include <plog/Appenders/ColorConsoleAppender.h>
 #include <plog/Formatters/TxtFormatter.h>
@@ -37,7 +36,6 @@ int main()
         stop = true;
     });
 
-    curl_global_init(CURL_GLOBAL_ALL);
     try
     {
         auto config = Config("configs/config.json");
@@ -49,6 +47,5 @@ int main()
     {
         PLOGF << e.what();
     }
-
-    curl_global_cleanup();
+    return 0;
 }

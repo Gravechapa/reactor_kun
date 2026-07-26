@@ -115,16 +115,6 @@ void textSplitter(std::string &text, std::queue<std::shared_ptr<BotMessage>> &ac
     }
 }
 
-void configCurlProxy(CURL *curl, std::string_view address, std::string_view usePwd)
-{
-    curl_easy_setopt(curl, CURLOPT_PROXY, address.data());
-    if (!usePwd.empty())
-    {
-        curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANYSAFE);
-        curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, usePwd.data());
-    }
-}
-
 // https://github.com/reo7sp/tgbot-cpp/blob/4356f747596a42dd04766f9c7234fd1aded2eeda/src/tools/StringTools.cpp#L89
 std::string urlDecode(const std::string &value)
 {
