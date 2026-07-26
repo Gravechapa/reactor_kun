@@ -28,3 +28,6 @@ if(NOT reactor_parser_POPULATED)
         set(REACTOR_PARSER_LIB "${CMAKE_BINARY_DIR}/reactor_parser/release/libreactor_parser.so")
     endif()
 endif()
+
+add_custom_command(TARGET reactor_parser POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy ${REACTOR_PARSER_LIB} "${CMAKE_BINARY_DIR}/bin")

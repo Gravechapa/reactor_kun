@@ -55,6 +55,7 @@ set_target_properties(reactor_kun reactor_kun_core
     CXX_STANDARD_REQUIRED ON
     COMPILE_WARNING_AS_ERROR ON
     EXPORT_COMPILE_COMMANDS ON
+    BUILD_RPATH "$<IF:$<BOOL:${APPLE}>,@executable_path,\$ORIGIN>"
 )
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
