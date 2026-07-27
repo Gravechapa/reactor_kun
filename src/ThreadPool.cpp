@@ -120,12 +120,12 @@ void ThreadPool::_scheduler(std::stop_token stoken)
     }
 }
 
-void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners, std::queue<std::shared_ptr<BotMessage>> &posts)
+void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners, PostQueue &posts)
 {
     addPostsToSend(listeners, posts);
 }
 
-void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners, std::queue<std::shared_ptr<BotMessage>> &posts)
+void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners, PostQueue &posts)
 {
     std::lock_guard scheduleGuard(_scheduleLock);
     while (!posts.empty())

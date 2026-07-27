@@ -73,8 +73,8 @@ std::optional<bool> getBool(nlohmann::json &json, const std::string &field, Fiel
     return it.value().get<bool>();
 }
 
-std::optional<std::string> getSring(nlohmann::json &json, const std::string &field,
-                                    FieldType ftype = FieldType::Required, const std::string &parents = "")
+std::optional<std::string> getString(nlohmann::json &json, const std::string &field,
+                                     FieldType ftype = FieldType::Required, const std::string &parents = "")
 {
     auto opt = checkExistance(json, field, ftype, parents);
     if (!opt)
@@ -115,12 +115,12 @@ Config::Config(std::string configFile)
     config >> json;
 
     _apiId = getInteger<int32_t>(json, "apiId").value();
-    _apiHash = getSring(json, "apiHash").value();
-    _token = getSring(json, "token").value();
-    _superUserName = getSring(json, "superUserName").value();
+    _apiHash = getString(json, "apiHash").value();
+    _token = getString(json, "token").value();
+    _superUserName = getString(json, "superUserName").value();
 
-    auto domain = getSring(json, "domain").value();
-    auto popularity = getSring(json, "popularity").value();
+    auto domain = getString(json, "domain").value();
+    auto popularity = getString(json, "popularity").value();
 
     auto result = getObject(json, "tag", FieldType::Optional);
     if (result)
@@ -128,7 +128,7 @@ Config::Config(std::string configFile)
         auto parent = "tag";
         auto tagJson = result.value();
         auto tagMode = getUnsignedInteger<uint8_t>(tagJson, "mode", FieldType::Required, parent).value();
-        auto tag = getSring(tagJson, "data", FieldType::Required, parent).value();
+        auto tag = getString(tagJson, "data", FieldType::Required, parent).value();
         _processTag(tag, tagMode);
     }
 
@@ -148,12 +148,12 @@ Config::Config(std::string configFile)
         auto proxyJson = result.value();
         _enableProxyForReactor = getBool(proxyJson, "enableForReactor", FieldType::Required, parent).value();
         _enableProxyForTelegram = getBool(proxyJson, "enableForTelegram", FieldType::Required, parent).value();
-        _proxyType = getSring(proxyJson, "type", FieldType::Required, parent).value();
+        _proxyType = getString(proxyJson, "type", FieldType::Required, parent).value();
         if (_proxyType != "http" && _proxyType != "https" && _proxyType != "socks5")
         {
             throw std::runtime_error("Bad config: bad proxy type");
         }
-        _proxyAddress = getSring(proxyJson, "address", FieldType::Required, parent).value();
+        _proxyAddress = getString(proxyJson, "address", FieldType::Required, parent).value();
 
         const std::regex validIpAddressRegex("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-"
                                              "9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$");
@@ -166,8 +166,8 @@ Config::Config(std::string configFile)
         }
 
         _proxyPort = getUnsignedInteger<uint16_t>(proxyJson, "port", FieldType::Required, parent).value();
-        _proxyUser = getSring(proxyJson, "user", FieldType::Optional, parent).value_or("");
-        _proxyPassword = getSring(proxyJson, "password", FieldType::Optional, parent).value_or("");
+        _proxyUser = getString(proxyJson, "user", FieldType::Optional, parent).value_or("");
+        _proxyPassword = getString(proxyJson, "password", FieldType::Optional, parent).value_or("");
     }
 }
 
@@ -175,31 +175,9 @@ void Config::_processTag(std::string_view tag, uint8_t mode)
 {
     switch (mode)
     {
-    case 0: {
-        _reactorTag.clear();
-        size_t pos = 0;
-        for (size_t i = pos; i < tag.size(); ++i)
-        {
-            std::string replace;
-            if (tag[i] == ' ')
-            {
-                replace = '+';
-            }
-            else if (tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
-            {
-                replace = urlEncode(std::string(1, tag[i]));
-            }
-
-            if (!replace.empty())
-            {
-                _reactorTag += tag.substr(pos, i - pos);
-                _reactorTag += replace;
-                pos = i + 1;
-            }
-        }
-        _reactorTag += tag.substr(pos);
+    case 0:
+        _reactorTag = prepareTag(tag);
         break;
-    }
     case 1:
         _reactorTag = tag;
         break;

@@ -205,7 +205,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         if (std::regex_match(postNumber, numberRegex))
         {
             SpinGuard tasksGuard(_mailerTasksLock);
-            _mailerTasks.push(std::pair(chatId, "https://old.reactor.cc/post/" + postNumber));
+            _mailerTasks.push(std::pair(chatId, postNumber));
         }
         else
         {
@@ -241,8 +241,9 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         {
             text.pop_back();
         }
+
         SpinGuard tasksGuard(_mailerTasksLock);
-        _mailerTasks.push(std::pair(chatId, text));
+        _mailerTasks.push(std::pair(chatId, text.substr(text.rfind('/') + 1)));
     }
     else
     {
@@ -373,14 +374,14 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
         }
         while (!tasks.empty())
         {
-            std::queue<std::shared_ptr<BotMessage>> post;
+            PostQueue post;
             if (tasks.front().second.empty())
             {
                 post = Parser::getRandomPost();
             }
             else
             {
-                post = Parser::getPostByURL(tasks.front().second);
+                post = Parser::getPostById(tasks.front().second);
             }
 
             if (!post.empty())

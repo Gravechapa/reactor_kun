@@ -1,7 +1,10 @@
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${ReactorKun_SOURCE_DIR}/include/ReactorKun/*.hpp")
-file(GLOB SOURCE_LIST CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE SOURCE_LIST CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE MODULE_LIST CONFIGURE_DEPENDS "*.cppm")
 
 add_library(reactor_kun_core ${SOURCE_LIST} ${HEADER_LIST} ${UTF8_STRING_SOURCE})
+
+target_sources(reactor_kun_core PRIVATE FILE_SET modules TYPE CXX_MODULES FILES "${MODULE_LIST}")
 
 target_include_directories(reactor_kun_core PUBLIC ../include/ReactorKun)
 

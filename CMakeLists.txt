@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.28)
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 
 project(ReactorKun VERSION 2.2
                     DESCRIPTION "Joyreactor bot"
@@ -35,6 +36,9 @@ include("cmake/Plog.cmake")
 
 message(STATUS "Fetching Cpr")
 include("cmake/Cpr.cmake")
+
+message(STATUS "Fetching Base64")
+include("cmake/Base64.cmake")
 ###############################################
 
 include(CheckIPOSupported)
@@ -59,6 +63,7 @@ set_target_properties(reactor_kun reactor_kun_core
     COMPILE_WARNING_AS_ERROR ON
     EXPORT_COMPILE_COMMANDS ON
     BUILD_RPATH "$<IF:$<BOOL:${APPLE}>,@executable_path,\$ORIGIN>"
+    CXX_MODULE_STD ON
 )
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")

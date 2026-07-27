@@ -16,8 +16,8 @@ class Parser
     static void setProxy(Config &config);
     static void init();
     static void update(int32_t lim = 0);
-    static std::queue<std::shared_ptr<BotMessage>> getPostByURL(std::string_view link, bool redirect = false);
-    static std::queue<std::shared_ptr<BotMessage>> getRandomPost();
+    static PostQueue getPostById(std::string_view id, bool redirect = false);
+    static PostQueue getRandomPost();
     static ContentInfo getContentInfo(std::string_view link);
     static bool getContent(std::string_view link, std::string_view filePath);
 
@@ -26,11 +26,45 @@ class Parser
     {
         Get,
         Head,
-        Download
+        Download,
+        Post
     };
 
+    class DBInterface
+    {
+      public:
+        virtual bool newReactorUrl([[maybe_unused]] int64_t id, [[maybe_unused]] std::string_view postLinks,
+                                   [[maybe_unused]] std::string_view tags) {};
+        virtual bool newReactorData([[maybe_unused]] int64_t id, [[maybe_unused]] int32_t type,
+                                    [[maybe_unused]] std::string_view text, [[maybe_unused]] std::string_view data) {};
+    };
+    class DBRaw : public DBInterface
+    {
+      public:
+        DBRaw(PostQueue &post) : _post(post) {};
+        bool newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags) override;
+        bool newReactorData(int64_t, int32_t type, std::string_view text, std::string_view data) override;
+
+      private:
+        PostQueue &_post;
+    };
+
+    class DBSql : DBInterface
+    {
+      public:
+        bool newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags) override;
+        bool newReactorData(int64_t id, int32_t type, std::string_view text, std::string_view data) override;
+
+      private:
+        BotDB &_db{BotDB::getBotDB()};
+    };
+
+    static bool _checkApiError(nlohmann::json &resp);
+    static bool _parsePost(nlohmann::json &post, DBInterface &&db);
+
     static cpr::Response _request(std::string_view url, cpr::Redirect redirect = cpr::Redirect{},
-                                  RequestType type = RequestType::Get, std::ofstream *const file = nullptr);
+                                  RequestType type = RequestType::Get, std::ofstream *const file = nullptr,
+                                  std::string_view query = "");
     static void _perform(CURL *curl, std::ofstream *const file = nullptr);
 
     static const cpr::Redirect _noRedirect;
@@ -39,7 +73,9 @@ class Parser
     static cpr::Cookies _cookies;
     static cpr::Header _header;
 
+    static constexpr std::string_view _reactorApiUrl{"https://api.joyreactor.cc/graphql"};
     static std::string _domain;
+    static const std::map<std::string_view, std::string_view> _domains;
     static std::string _urlPath;
     static int32_t _overload;
 

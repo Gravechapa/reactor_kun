@@ -83,9 +83,9 @@ Dimension getJpegResolution(std::string_view path) // http://carnage-melon.tom7.
     }
 }
 
-void textSplitter(std::string &text, std::queue<std::shared_ptr<BotMessage>> &accumulator)
+void textSplitter(std::string_view text, PostQueue &accumulator)
 {
-    UTF8string utf8Text(text);
+    UTF8string utf8Text(text.data());
     size_t pos = 0;
     size_t skip = 0;
     while (pos < utf8Text.utf8_length())
@@ -154,4 +154,31 @@ std::string urlEncode(const std::string &value, const std::string &additionalLeg
         }
     }
     return ss.str();
+}
+
+std::string prepareTag(std::string_view tag)
+{
+    std::string res;
+    size_t pos = 0;
+    for (size_t i = pos; i < tag.size(); ++i)
+    {
+        std::string replace;
+        if (tag[i] == ' ')
+        {
+            replace = '+';
+        }
+        else if (tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
+        {
+            replace = urlEncode(std::string(1, tag[i]));
+        }
+
+        if (!replace.empty())
+        {
+            res += tag.substr(pos, i - pos);
+            res += replace;
+            pos = i + 1;
+        }
+    }
+    res += tag.substr(pos);
+    return res;
 }

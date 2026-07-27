@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <memory>
+#include <queue>
 #include <string>
 
 enum class ElementType : int32_t
@@ -89,3 +90,5 @@ class PostFooterMessage : public BotMessage
   private:
     std::string_view _signature;
 };
+
+using PostQueue = std::queue<std::shared_ptr<BotMessage>>;

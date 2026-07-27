@@ -19,7 +19,9 @@ struct Dimension
 
 Dimension getJpegResolution(std::string_view path);
 
-void textSplitter(std::string &text, std::queue<std::shared_ptr<BotMessage>> &accumulator);
+void textSplitter(std::string_view text, PostQueue &accumulator);
 
 std::string urlDecode(const std::string &value);
 std::string urlEncode(const std::string &value, const std::string &additionalLegitChars = "");
+
+std::string prepareTag(std::string_view tag);

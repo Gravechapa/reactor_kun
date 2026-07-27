@@ -18,8 +18,8 @@ class ThreadPool
 
     ThreadPool(ReactorKun &bot);
 
-    void addPostsToSend(std::vector<int64_t> &&listeners, std::queue<std::shared_ptr<BotMessage>> &posts);
-    void addPostsToSend(std::vector<int64_t> &listeners, std::queue<std::shared_ptr<BotMessage>> &posts);
+    void addPostsToSend(std::vector<int64_t> &&listeners, PostQueue &posts);
+    void addPostsToSend(std::vector<int64_t> &listeners, PostQueue &posts);
     void addTextToSend(std::vector<int64_t> &&listeners, std::string_view text);
     void addImgToSend(std::vector<int64_t> &&listeners, std::string_view url);
     void setStatus(int64_t listener, Status status, int32_t wait = 30);
@@ -32,8 +32,8 @@ class ThreadPool
         Status status{Status::Error};
         bool lastMessageHighPriority;
 
-        std::queue<std::shared_ptr<BotMessage>> lowPriority;
-        std::queue<std::shared_ptr<BotMessage>> highPriority;
+        PostQueue lowPriority;
+        PostQueue highPriority;
     };
 
     struct Task
