@@ -156,11 +156,11 @@ std::string urlEncode(const std::string &value, const std::string &additionalLeg
     return ss.str();
 }
 
-std::string prepareTag(std::string_view tag)
+std::string replace(std::string_view text, std::string_view list, bool escape)
 {
     std::string res;
     size_t pos = 0;
-    for (size_t i = pos; i < tag.size(); ++i)
+    for (size_t i = pos; i < text.size(); ++i)
     {
         std::string replace;
         // dosen't work well with modern reactor
@@ -168,18 +168,37 @@ std::string prepareTag(std::string_view tag)
         //  {
         //      replace = '+';
         //  }
-        if (tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
+        if (list.find(text[i]) != std::string::npos)
         {
-            replace = urlEncode(std::string(1, tag[i]));
+            if (escape)
+            {
+                replace = '\\';
+                replace += text[i];
+            }
+            else
+            {
+                replace = urlEncode(std::string(1, text[i]));
+            }
         }
 
         if (!replace.empty())
         {
-            res += tag.substr(pos, i - pos);
+            res += text.substr(pos, i - pos);
             res += replace;
             pos = i + 1;
         }
     }
-    res += tag.substr(pos);
+    res += text.substr(pos);
     return res;
+}
+
+std::string prepareTag(std::string_view tag)
+{
+    std::string_view listToEncode{"/+?%"};
+    return replace(tag, listToEncode, false);
+}
+
+std::string escapeString(std::string_view text, std::string_view symbolsToEscape)
+{
+    return replace(text, symbolsToEscape, true);
 }

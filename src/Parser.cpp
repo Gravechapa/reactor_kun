@@ -147,13 +147,15 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         for (size_t i = 0; i < sizeLimit; ++i)
         {
             auto preparedTag = prepareTag(tagNames[i]);
-            preparedTag = std::format("tag/{}", urlEncode(preparedTag));
-            tags += std::format("[{1}]({2}{0})[🆕]({3}{0})[🕸]({4}{0}) ", preparedTag, tagNames[i],
+            preparedTag = std::format("tag/{}", urlEncode(preparedTag, "()"));
+            preparedTag = escapeString(preparedTag, R"()\)");                      // for markdown v2
+            auto escapedName = escapeString(tagNames[i], R"(_*[]()~`>#+-=|{}.!)"); // for markdown v2
+            tags += std::format("[{1}]({2}{0})[🆕]({3}{0})[🕸]({4}{0}) ", preparedTag, escapedName,
                                 _domains.at("modern"), _domains.at("new"), _domains.at("old"));
         }
         if (sizeLimit != tagNames.size())
         {
-            tags += "...";
+            tags += R"(\.\.\.)";
         }
         // prepare tags for files prefix
         sizeLimit = tagNames.size() > maxFilePrefixTags ? maxFilePrefixTags : tagNames.size();
@@ -161,7 +163,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         {
             auto tmp = tagNames[i] + "-";
             std::replace(tmp.begin(), tmp.end(), ' ', '-');
-            filePrefix += urlEncode(tmp);
+            filePrefix += urlEncode(tmp, std::format("(){}", russianLetters));
         }
     }
     else
@@ -213,7 +215,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     ////////////////////////////////////////post attributes/////////////////////////////////////////
     auto text = node->to_text();
     std::string attrMagic = "&attribute_insert_";
-    std::vector<std::pair<int32_t, nlohmann::json &>> attrs;
+    std::vector<std::pair<int32_t, std::reference_wrapper<nlohmann::json>>> attrs;
     auto attrsNode = postNode->find("attributes");
     if (attrsNode != postNode->end() && attrsNode->is_array())
     {
@@ -240,10 +242,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                 attrs.push_back({*insertIdNode, attrNode});
             }
         }
-        std::sort(attrs.begin(), attrs.end(),
-                  [](std::pair<int32_t, nlohmann::json> a, std::pair<int32_t, nlohmann::json> b) {
-                      return a.first < b.first;
-                  });
+        std::sort(attrs.begin(), attrs.end(), [](auto &a, auto &b) { return a.first < b.first; });
     }
     else
     {
@@ -284,7 +283,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                   << std::format("there is less attribute then inserts, {} < current id {}", attrs.size(), attrId);
             return false;
         }
-        auto attrNode = attrs[attrId - 1].second;
+        auto attrNode = attrs[attrId - 1].second.get();
         auto attrTypeNode = attrNode.find("type");
         if (attrTypeNode == attrNode.end() || !attrTypeNode->is_string())
         {

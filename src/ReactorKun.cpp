@@ -318,7 +318,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
         response = _client.sendMessage(
             listener,
             std::string("*Ссылка:* ").append(message->getUrl()).append("\n*Теги:* ").append(message->getTags()),
-            TextType::Markdown, true, true);
+            TextType::MarkdownV2, true, true);
         break;
     case ElementType::TEXT:
         response = _client.sendMessage(listener, message->getText().data(), TextType::Plain, true, true);
