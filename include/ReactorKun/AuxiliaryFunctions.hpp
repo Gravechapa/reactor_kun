@@ -27,3 +27,5 @@ std::string urlEncode(const std::string &value, const std::string &additionalLeg
 
 std::string prepareTag(std::string_view tag);
 std::string escapeString(std::string_view text, std::string_view symbolsToEscape);
+
+void trim(std::string &str);

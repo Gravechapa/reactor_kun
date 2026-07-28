@@ -16,7 +16,7 @@ class Parser
     static void setProxy(Config &config);
     static void init();
     static void update(int32_t lim = 0);
-    static PostQueue getPostById(std::string_view id, bool redirect = false);
+    static PostQueue getPostById(std::string_view id);
     static PostQueue getRandomPost();
     static ContentInfo getContentInfo(std::string_view link);
     static bool getContent(std::string_view link, std::string_view filePath);

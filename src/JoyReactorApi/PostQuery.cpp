@@ -10,57 +10,30 @@ static const std::string_view query{
   {
     ... on Post{
       id
+      tags{
+        name
+      }
       createdAt
-      nsfw
-      rating
-      text
-      unsafe
       user{
         username
       }
+      rating
+      nsfw
+      unsafe
+      text
       attributes{
-        id
-        type
         insertId
+        type
         ... on PostAttributeEmbed{
           value
         }
         ... on PostAttributePicture{
+          id
           image{
+            type
             width
             height
-            comment
-            type
             hasVideo
-          }
-        }
-      }
-      tags{
-        name
-      }
-      bestComments{
-        text
-        createdAt
-        rating
-        level
-        user{
-            username
-        }
-        attributes{
-          id
-          type
-          insertId
-          ... on CommentAttributeEmbed{
-            value
-          }
-          ... on CommentAttributePicture{
-            image{
-              width
-              height
-              comment
-              type
-              hasVideo
-            }
           }
         }
       }
@@ -69,6 +42,31 @@ static const std::string_view query{
         answers{
           answer
           count
+        }
+      }
+      bestComments{
+        createdAt
+        user{
+            username
+        }
+        level
+        rating
+        text
+        attributes{
+          insertId
+          type
+          ... on CommentAttributeEmbed{
+            value
+          }
+          ... on CommentAttributePicture{
+            id
+            image{
+              type
+              width
+              height
+              hasVideo
+            }
+          }
         }
       }
     }

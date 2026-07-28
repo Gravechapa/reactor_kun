@@ -202,3 +202,15 @@ std::string escapeString(std::string_view text, std::string_view symbolsToEscape
 {
     return replace(text, symbolsToEscape, true);
 }
+
+void trim(std::string &str)
+{
+    while (str.starts_with(' ') || str.starts_with('\n'))
+    {
+        str.erase(0, 1); // Erase from the start
+    }
+    while (str.ends_with(' ') || str.ends_with('\n'))
+    {
+        str.erase(str.size() - 1, 1); // Erase from the end
+    }
+}

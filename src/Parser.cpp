@@ -13,8 +13,8 @@ std::string Parser::_urlPath;
 int Parser::_overload = 2000;
 
 const std::map<std::string_view, std::string_view> Parser::_domains{
-    {"modern", "https://joyreactor.cc/"}, {"new", "https://reactor.cc/"}, {"old", "https://old.reactor.cc/"}};
-const std::string_view Parser::_imgBaseUrl{"https://img1.joyreactor.cc/pics/"};
+    {"modern", "https://joyreactor.cc"}, {"new", "https://reactor.cc"}, {"old", "https://old.reactor.cc"}};
+const std::string_view Parser::_imgBaseUrl{"https://img1.joyreactor.cc/pics"};
 
 std::mutex Parser::_lock;
 std::chrono::high_resolution_clock::time_point Parser::_timePoint = std::chrono::high_resolution_clock::now();
@@ -147,7 +147,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         for (size_t i = 0; i < sizeLimit; ++i)
         {
             auto preparedTag = prepareTag(tagNames[i]);
-            preparedTag = std::format("tag/{}", urlEncode(preparedTag, "()"));
+            preparedTag = std::format("/tag/{}", urlEncode(preparedTag, "()"));
             preparedTag = escapeString(preparedTag, R"()\)");                      // for markdown v2
             auto escapedName = escapeString(tagNames[i], R"(_*[]()~`>#+-=|{}.!)"); // for markdown v2
             tags += std::format("[{1}]({2}{0})[🆕]({3}{0})[🕸]({4}{0}) ", preparedTag, escapedName,
@@ -174,8 +174,8 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     {
         filePrefix = "picture-";
     }
-    auto links = std::format("[Modern]({1}post/{0}) [New]({2}post/{0}) [Old]({3}post/{0}) ", id, _domains.at("modern"),
-                             _domains.at("new"), _domains.at("old"));
+    auto links = std::format("[Modern]({1}/post/{0}) [New]({2}/post/{0}) [Old]({3}/post/{0}) ", id,
+                             _domains.at("modern"), _domains.at("new"), _domains.at("old"));
     if (!db.newReactorUrl(id, links, tags))
     {
         return true;
@@ -189,6 +189,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     }
     static const auto reactorRedirectRegex =
         std::regex(R"(^https?://(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/redirect\?url=.*)");
+    static const auto reactorUrlRegax = std::regex(R"(^(/post/\d+|/tag/[^/?]+)$)");
     html::parser p;
     html::node_ptr node = p.parse(*textNode);
     std::vector<html::node *> linkTags = node->select("a[href]");
@@ -200,6 +201,10 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
             if (std::regex_match(link, reactorRedirectRegex))
             {
                 link = urlDecode(link.substr(link.find("url=") + 4));
+            }
+            else if (std::regex_match(link, reactorUrlRegax))
+            {
+                link = std::format("{}{}", _domains.at("modern"), link);
             }
             if (link != linkTag->at(0)->content)
             {
@@ -214,6 +219,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     }
     ////////////////////////////////////////post attributes/////////////////////////////////////////
     auto text = node->to_text();
+    trim(text);
     std::string attrMagic = "&attribute_insert_";
     std::vector<std::pair<int32_t, std::reference_wrapper<nlohmann::json>>> attrs;
     auto attrsNode = postNode->find("attributes");
@@ -265,6 +271,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
             currentTextEnd = attrPos;
         }
         auto currentText = text.substr(0, currentTextEnd);
+        trim(currentText);
         size_t attrIdStart = attrPos + attrMagic.size();
         size_t attrIdEnd = text.find('&', attrIdStart);
         auto attrStr = text.substr(attrPos, attrIdEnd - attrPos + 1);
@@ -431,7 +438,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                     std::string ext = *arrtImgTypeNode;
                     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                     std::string dataUrl =
-                        std::format("{}{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                        std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
                     db.newReactorData(id, ElementType::IMG, currentText, dataUrl);
                     continue;
                 }
@@ -458,7 +465,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                     }
                     std::string dataUrl =
-                        std::format("{}{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                        std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
                     db.newReactorData(id, ElementType::DOCUMENT, currentText, dataUrl);
                     continue;
                 }
@@ -476,6 +483,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         }
         fallback();
     }
+    trim(text);
     if (!text.empty())
     {
         db.newReactorData(id, ElementType::TEXT, text, "");
@@ -524,7 +532,7 @@ void Parser::init()
     update(10);
 }
 
-PostQueue Parser::getPostById(std::string_view id, bool)
+PostQueue Parser::getPostById(std::string_view id)
 {
     PostQueue post;
 
@@ -546,9 +554,21 @@ PostQueue Parser::getPostById(std::string_view id, bool)
 
 PostQueue Parser::getRandomPost()
 {
-    std::string link = _domain + "/random";
-
-    return getPostById("6354178", true);
+    static const std::string link = std::format("{}/random", _domains.at("new"));
+    auto resp = _request(link, cpr::Redirect{}, RequestType::Head);
+    std::string url{resp.url};
+    static const auto randomRegex =
+        std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+\?next=random$)");
+    if (std::regex_match(url, randomRegex))
+    {
+        auto start = url.rfind('/') + 1;
+        return getPostById(url.substr(start, url.rfind('?') - start));
+    }
+    else
+    {
+        PLOGE << "Random post: got bad url from reactor" << url;
+        return PostQueue{};
+    }
 }
 
 void Parser::update(int32_t lim)
