@@ -35,7 +35,7 @@ class Parser
       public:
         virtual bool newReactorUrl([[maybe_unused]] int64_t id, [[maybe_unused]] std::string_view postLinks,
                                    [[maybe_unused]] std::string_view tags) {};
-        virtual bool newReactorData([[maybe_unused]] int64_t id, [[maybe_unused]] int32_t type,
+        virtual bool newReactorData([[maybe_unused]] int64_t id, [[maybe_unused]] ElementType type,
                                     [[maybe_unused]] std::string_view text, [[maybe_unused]] std::string_view data) {};
     };
     class DBRaw : public DBInterface
@@ -43,7 +43,7 @@ class Parser
       public:
         DBRaw(PostQueue &post) : _post(post) {};
         bool newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags) override;
-        bool newReactorData(int64_t, int32_t type, std::string_view text, std::string_view data) override;
+        bool newReactorData(int64_t, ElementType type, std::string_view text, std::string_view data) override;
 
       private:
         PostQueue &_post;
@@ -53,7 +53,7 @@ class Parser
     {
       public:
         bool newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags) override;
-        bool newReactorData(int64_t id, int32_t type, std::string_view text, std::string_view data) override;
+        bool newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data) override;
 
       private:
         BotDB &_db{BotDB::getBotDB()};
@@ -76,6 +76,7 @@ class Parser
     static constexpr std::string_view _reactorApiUrl{"https://api.joyreactor.cc/graphql"};
     static std::string _domain;
     static const std::map<std::string_view, std::string_view> _domains;
+    static const std::string_view _imgBaseUrl;
     static std::string _urlPath;
     static int32_t _overload;
 

@@ -39,6 +39,9 @@ include("cmake/Cpr.cmake")
 
 message(STATUS "Fetching Base64")
 include("cmake/Base64.cmake")
+
+message(STATUS "Fetching HtmlParser")
+include("cmake/HtmlParser.cmake")
 ###############################################
 
 include(CheckIPOSupported)

@@ -19,6 +19,7 @@ static const std::string_view query{
         username
       }
       attributes{
+        id
         type
         insertId
         ... on PostAttributeEmbed{
@@ -31,7 +32,6 @@ static const std::string_view query{
             comment
             type
             hasVideo
-            id
           }
         }
       }
@@ -47,6 +47,7 @@ static const std::string_view query{
             username
         }
         attributes{
+          id
           type
           insertId
           ... on CommentAttributeEmbed{
@@ -59,7 +60,6 @@ static const std::string_view query{
               comment
               type
               hasVideo
-              id
             }
           }
         }

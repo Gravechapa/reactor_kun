@@ -163,11 +163,12 @@ std::string prepareTag(std::string_view tag)
     for (size_t i = pos; i < tag.size(); ++i)
     {
         std::string replace;
-        if (tag[i] == ' ')
-        {
-            replace = '+';
-        }
-        else if (tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
+        // dosen't work well with modern reactor
+        //  if (tag[i] == ' ')
+        //  {
+        //      replace = '+';
+        //  }
+        if (tag[i] == '/' || tag[i] == '+' || tag[i] == '?')
         {
             replace = urlEncode(std::string(1, tag[i]));
         }
