@@ -179,7 +179,24 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     for (auto linkTag : linkTags)
     {
         auto link = linkTag->get_attr("href");
-        if (link != linkTag->at(0)->content)
+        html::node *textNode{nullptr};
+        linkTag->walk([&textNode](html::node &n) {
+            if (textNode)
+            {
+                return false;
+            }
+            else if (n.type_node == html::node_t::text)
+            {
+                textNode = &n;
+                return false;
+            }
+            return true; // scan child tags
+        });
+        if (!textNode)
+        {
+            continue;
+        }
+        if (link != textNode->content)
         {
             if (std::regex_match(link, reactorRedirectRegex))
             {
@@ -189,15 +206,15 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
             {
                 link = std::format("{}{}", _domains.at("modern"), link);
             }
-            if (link != linkTag->at(0)->content)
+            if (link != textNode->content)
             {
-                linkTag->at(0)->content += std::format("\"{}\"", link);
+                textNode->content += std::format("\"{}\"", link);
             }
         }
         else if (std::regex_match(link, reactorRedirectRegex))
         {
             link = urlDecode(link.substr(link.find("url=") + 4));
-            linkTag->at(0)->content = link;
+            textNode->content = link;
         }
     }
     ////////////////////////////////////////post attributes/////////////////////////////////////////
