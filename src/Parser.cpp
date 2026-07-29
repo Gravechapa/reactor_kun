@@ -582,18 +582,12 @@ PostQueue Parser::getRandomPost()
 void Parser::update(uint32_t lim)
 {
     uint32_t page{0};
-    size_t pagePos{0};
     uint32_t coincidenceCount{0};
     uint32_t totalProcessed{0};
     while (true)
     {
         auto query = JoyReactorApi::postPagerQuery(_tag, _popularity, page);
         auto resp = _request(_reactorApiUrl, RequestType::Post, cpr::Redirect{}, nullptr, query);
-        // I'm pretty sure it's not required with api, but why not
-        if (!resp.cookies.empty())
-        {
-            _cookies = resp.cookies;
-        }
         auto jsonResp = nlohmann::json::parse(resp.text);
         const std::string logPrefix = std::format("Page({}) Tag({}) Popularity({}) request: ", page, _tag, _popularity);
         if (_checkApiError(jsonResp))
@@ -635,10 +629,11 @@ void Parser::update(uint32_t lim)
             }
             uint64_t totalCount = *postPagerCountNode;
             page = (totalCount / 10) + ((totalCount % 10) != 0);
+            PLOGD << logPrefix << std::format("total count({}) page({})", totalCount, page);
         }
-        for (auto it = pagePos; it < postPagerPostsNode->size(); ++it)
+        for (auto &postNode : *postPagerPostsNode)
         {
-            switch (_parsePost((*postPagerPostsNode)[it], DBSql{}))
+            switch (_parsePost(postNode, DBSql{}))
             {
             case PostParserStatus::Exists:
                 ++coincidenceCount;
@@ -649,22 +644,16 @@ void Parser::update(uint32_t lim)
             case PostParserStatus::Ok:
                 break;
             }
-            ++totalProcessed;
         }
-        pagePos = 0;
+        totalProcessed += postPagerPostsNode->size();
         if (postPagerPostsNode->size() > 10)
         {
-            auto overflow = postPagerPostsNode->size() - 10;
-            auto skipPages = overflow / 10;
-            pagePos = overflow % 10;
-            if (overflow >= page)
+            PLOGD << logPrefix << std::format("posts overflow({}) skiping page", postPagerPostsNode->size());
+            if (page <= 1)
             {
                 return;
             }
-            page -= overflow;
-            PLOGW << logPrefix
-                  << std::format("posts overflow({}) skiped pages({}) skiped posts({}) next page({})", overflow,
-                                 skipPages, pagePos, page);
+            --page;
         }
         if (page <= 1)
         {
@@ -735,15 +724,19 @@ cpr::Response Parser::_request(std::string_view url, RequestType type, cpr::Redi
             r = cpr::Head(cpr::Url{url}, _proxies, _proxyAuth, redirect, _cookies, _header);
             break;
         case RequestType::Download:
-            r = cpr::Download(*file, cpr::Url{url}, _proxies, _proxyAuth, redirect, _header);
+            r = cpr::Download(*file, cpr::Url{url}, _proxies, _proxyAuth, redirect, _cookies, _header);
             break;
         case RequestType::Post:
-            r = cpr::Post(cpr::Url{url}, _proxies, _proxyAuth, cpr::Body{query},
+            r = cpr::Post(cpr::Url{url}, _proxies, _proxyAuth, _cookies, cpr::Body{query},
                           cpr::Header{{"Content-Type", "application/json"}});
             break;
         }
         if (r.status_code == 200 || (300 <= r.status_code && r.status_code < 400))
         {
+            if (!r.cookies.empty())
+            {
+                _cookies = r.cookies;
+            }
             if (r.status_code != 200)
             {
                 PLOGW << std::format("Url {} redirected {}", url, r.status_code);
