@@ -9,19 +9,17 @@ class Config
   public:
     Config(std::string configFile);
 
-    std::string generateReactorUrl(std::string_view domain, std::string_view popularity);
-
     int32_t getApiId() const;
     const std::string &getApiHash() const;
     const std::string &getToken() const;
     const std::string &getSU() const;
     const std::string &getReactorDomain() const;
-    const std::string &getReactorUrlPath() const;
+    const std::string &getReactorTag() const;
+    const std::string &getReactorPopularity() const;
     bool isFilesDownloadingEnabled() const;
     bool isProxyEnabledForReactor() const;
     bool isProxyEnabledForTelegram() const;
     std::string getProxy() const;
-    std::string getProxyUsePwd() const;
     std::string_view getProxyType() const;
     std::string_view getProxyAddress() const;
     uint16_t getProxyPort() const;
@@ -36,8 +34,8 @@ class Config
     std::string _token;
     std::string _superUserName;
     std::string _reactorDomain;
-    std::string _reactorUrlPath;
     std::string _reactorTag;
+    std::string _reactorPopularity;
     bool _filesDownloadingEnable;
     std::string _proxyType;
     std::string _proxyAddress;

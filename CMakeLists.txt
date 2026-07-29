@@ -25,9 +25,6 @@ include("cmake/TDLib.cmake")
 message(STATUS "Fetching Json")
 include("cmake/Json.cmake")
 
-message(STATUS "Fetching ReactorParser")
-include("cmake/ReactorParser.cmake")
-
 message(STATUS "Fetching UTF8String")
 include("cmake/UTF8String.cmake")
 

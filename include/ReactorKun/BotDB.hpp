@@ -22,7 +22,7 @@ class BotDB
     std::queue<std::shared_ptr<BotMessage>> getLatestReactorPost();
     bool empty();
     void clear();
-    bool setCurrentReactorPath(std::string_view path);
+    bool setCurrentReactorFeed(std::string_view feed);
 
     static BotDB &getBotDB();
 

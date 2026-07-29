@@ -1,24 +1,21 @@
 #include "Parser.hpp"
 #include "AuxiliaryFunctions.hpp"
 #include "BotDB.hpp"
-#include "RustReactorParser.h"
 #include <base64.hpp>
 #include <fstream>
 #include <html.hpp>
 #include <plog/Log.h>
 import JoyReactorApi;
 
-std::string Parser::_domain;
-std::string Parser::_urlPath;
-int Parser::_overload = 2000;
-
 const std::map<std::string_view, std::string_view> Parser::_domains{
     {"modern", "https://joyreactor.cc"}, {"new", "https://reactor.cc"}, {"old", "https://old.reactor.cc"}};
-const std::string_view Parser::_imgBaseUrl{"https://img1.joyreactor.cc/pics"};
 
 std::mutex Parser::_lock;
 std::chrono::high_resolution_clock::time_point Parser::_timePoint = std::chrono::high_resolution_clock::now();
 const std::chrono::milliseconds Parser::_delay = std::chrono::milliseconds(10);
+
+std::string Parser::_tag{};
+std::string Parser::_popularity{};
 
 const cpr::Redirect Parser::_noRedirect{cpr::Redirect{0, false, false, cpr::PostRedirectFlags::POST_ALL}};
 cpr::Proxies Parser::_proxies{};
@@ -77,33 +74,18 @@ bool Parser::_checkApiError(nlohmann::json &resp)
     }
     return true;
 }
-bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
+Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterface &&db)
 {
-    if (_checkApiError(post))
-    {
-        return false;
-    }
+
     constexpr int8_t maxTags = 15;
     constexpr int8_t maxFilePrefixTags = 3;
     constexpr std::string_view logPrefix{"Post parser: "};
-    auto postData = post.find("data");
-    if (postData == post.end() || !postData->is_object())
-    {
-        PLOGE << logPrefix << "no 'data' or it's not an object";
-        return false;
-    }
-    auto postNode = postData->find("node");
-    if (postNode == postData->end() || !postNode->is_object())
-    {
-        PLOGE << logPrefix << "no 'node' or it's not an object";
-        return false;
-    }
     ////////////////////////////////////////post id/////////////////////////////////////////////////
-    auto postId = postNode->find("id");
-    if (postId == postNode->end() || !postId->is_string())
+    auto postId = postNode.find("id");
+    if (postId == postNode.end() || !postId->is_string())
     {
         PLOGE << logPrefix << "no 'id' or it's not a string";
-        return false;
+        return PostParserStatus::Error;
     }
     std::string idString;
     try
@@ -113,21 +95,22 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     catch (std::runtime_error e)
     {
         PLOGE << logPrefix << std::format("'id' has bad base64 encoding '{}'", postId->get<std::string>());
-        return false;
+        return PostParserStatus::Error;
     }
     static const auto postIdRegex = std::regex(R"(^Post:\d+$)");
     if (!std::regex_match(idString, postIdRegex))
     {
         PLOGE << logPrefix << std::format("wrong post id format '{}', should be 'Post:<id>'", idString);
-        return false;
+        return PostParserStatus::Error;
     }
     // can be a fixed value, but I decided that this way is less error prone
     int64_t id = std::stoll(idString.substr(idString.find(':') + 1));
+    PLOGD << logPrefix << "post id " << id;
     ////////////////////////////////////////post tags///////////////////////////////////////////////
-    auto postTags = postNode->find("tags");
+    auto postTags = postNode.find("tags");
     std::string tags;
     std::string filePrefix;
-    if (postTags != postNode->end() && postTags->is_array())
+    if (postTags != postNode.end() && postTags->is_array())
     {
         std::vector<std::string> tagNames;
         for (auto &tag : *postTags)
@@ -178,14 +161,14 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                              _domains.at("modern"), _domains.at("new"), _domains.at("old"));
     if (!db.newReactorUrl(id, links, tags))
     {
-        return true;
+        return PostParserStatus::Exists;
     }
     ////////////////////////////////////////post text///////////////////////////////////////////////
-    auto textNode = postNode->find("text");
-    if (textNode == postNode->end() || !textNode->is_string())
+    auto textNode = postNode.find("text");
+    if (textNode == postNode.end() || !textNode->is_string())
     {
         PLOGE << logPrefix << "no 'text' or it's not a string";
-        return false;
+        return PostParserStatus::Error;
     }
     static const auto reactorRedirectRegex =
         std::regex(R"(^https?://(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/redirect\?url=.*)");
@@ -222,8 +205,8 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     trim(text);
     std::string attrMagic = "&attribute_insert_";
     std::vector<std::pair<int32_t, std::reference_wrapper<nlohmann::json>>> attrs;
-    auto attrsNode = postNode->find("attributes");
-    if (attrsNode != postNode->end() && attrsNode->is_array())
+    auto attrsNode = postNode.find("attributes");
+    if (attrsNode != postNode.end() && attrsNode->is_array())
     {
         for (auto &attrNode : *attrsNode)
         {
@@ -240,7 +223,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
                 else
                 {
                     PLOGE << logPrefix << "attribute has no 'insertId' or it's not an integer";
-                    return false;
+                    return PostParserStatus::Error;
                 }
             }
             else
@@ -280,7 +263,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         {
             PLOGE << logPrefix
                   << std::format("wrong attribute magic '{}', should be '&attribute_insert_<id>&'", attrStr);
-            return false;
+            return PostParserStatus::Error;
         }
         auto attrId = std::stoul(text.substr(attrIdStart, attrIdEnd - attrIdStart));
         text = text.substr(attrIdEnd + 1);
@@ -288,7 +271,7 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
         {
             PLOGE << logPrefix
                   << std::format("there is less attribute then inserts, {} < current id {}", attrs.size(), attrId);
-            return false;
+            return PostParserStatus::Error;
         }
         auto attrNode = attrs[attrId - 1].second.get();
         auto attrTypeNode = attrNode.find("type");
@@ -488,32 +471,19 @@ bool Parser::_parsePost(nlohmann::json &post, DBInterface &&db)
     {
         db.newReactorData(id, ElementType::TEXT, text, "");
     }
-    return true;
-}
-////////////////////////////to delete
-void reactorLog(const char *text)
-{
-    PLOGW << text;
+    return PostParserStatus::Ok;
 }
 
-bool newReactorUrl(int64_t id, const char *url, const char *tags, void *)
+void Parser::setup(Config &config)
 {
-    return BotDB::getBotDB().newReactorUrl(id, url, tags);
-}
-
-bool newReactorData(int64_t id, int32_t type, const char *text, const char *data, void *)
-{
-    return BotDB::getBotDB().newReactorData(id, static_cast<ElementType>(type), text, data);
-}
-/////////////////////////////
-void Parser::setup(std::string_view domain, std::string_view urlPath)
-{
-    _domain = domain;
-    _urlPath = urlPath;
-    _header = cpr::Header{{"Referer", _domain}};
-    _cookies = _request(domain, _noRedirect, RequestType::Head).cookies;
-    _cookies.emplace_back({"sfw", "1"});
-    set_log_callback(&reactorLog);
+    _tag = config.getReactorTag();
+    _popularity = config.getReactorPopularity();
+    _header = cpr::Header{{"Referer", _domains.at("modern").data()}};
+    _cookies = _request(_domains.at("modern"), RequestType::Head, _noRedirect).cookies;
+    if (config.isProxyEnabledForReactor())
+    {
+        setProxy(config);
+    }
 }
 
 void Parser::setProxy(Config &config)
@@ -537,11 +507,28 @@ PostQueue Parser::getPostById(std::string_view id)
     PostQueue post;
 
     auto query = JoyReactorApi::postQuery(id);
-    auto resp = _request(_reactorApiUrl, cpr::Redirect{}, RequestType::Post, nullptr, query);
-    auto jsonPost = nlohmann::json::parse(resp.text);
-    if (!_parsePost(jsonPost, DBRaw{post}))
+    auto resp = _request(_reactorApiUrl, RequestType::Post, cpr::Redirect{}, nullptr, query);
+    auto jsonResp = nlohmann::json::parse(resp.text);
+    if (_checkApiError(jsonResp))
     {
-        PLOGW << std::format("There were some issues during the post({}) processing", id);
+        PLOGE << std::format("Post({}) request failed", id);
+        return post;
+    }
+    auto postData = jsonResp.find("data");
+    if (postData == jsonResp.end() || !postData->is_object())
+    {
+        PLOGE << std::format("Post({}) request: no 'data' or it's not an object", id);
+        return post;
+    }
+    auto postNode = postData->find("node");
+    if (postNode == postData->end() || !postNode->is_object())
+    {
+        PLOGE << std::format("Post({}) request: no 'node' or it's not an object", id);
+        return post;
+    }
+    if (_parsePost(*postNode, DBRaw{post}) != PostParserStatus::Ok)
+    {
+        PLOGW << std::format("There were some issues during the processing of the post({}) ", id);
     }
 
     if (!post.empty())
@@ -555,7 +542,7 @@ PostQueue Parser::getPostById(std::string_view id)
 PostQueue Parser::getRandomPost()
 {
     static const std::string link = std::format("{}/random", _domains.at("new"));
-    auto resp = _request(link, cpr::Redirect{}, RequestType::Head);
+    auto resp = _request(link, RequestType::Head);
     std::string url{resp.url};
     static const auto randomRegex =
         std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+\?next=random$)");
@@ -571,39 +558,102 @@ PostQueue Parser::getRandomPost()
     }
 }
 
-void Parser::update(int32_t lim)
+void Parser::update(uint32_t lim)
 {
-    std::string nextUrl = _domain + _urlPath;
-
-    NextPageUrl nextPageUrl;
-
+    uint32_t page{0};
+    size_t pagePos{0};
+    uint32_t coincidenceCount{0};
+    uint32_t totalProcessed{0};
     while (true)
     {
-        auto resp = _request(nextUrl);
-        std::string html = resp.text;
+        auto query = JoyReactorApi::postPagerQuery(_tag, _popularity, page);
+        auto resp = _request(_reactorApiUrl, RequestType::Post, cpr::Redirect{}, nullptr, query);
+        // I'm pretty sure it's not required with api, but why not
         if (!resp.cookies.empty())
         {
             _cookies = resp.cookies;
-            _cookies.emplace_back({"sfw", "1"});
         }
-
-        if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData, &nextPageUrl, nullptr,
-                              false))
+        auto jsonResp = nlohmann::json::parse(resp.text);
+        const std::string logPrefix = std::format("Page({}) Tag({}) Popularity({}) request: ", page, _tag, _popularity);
+        if (_checkApiError(jsonResp))
         {
-            PLOGW << "There were some issues when processing the page: " << nextUrl;
-            if (!nextPageUrl.url)
+            PLOGE << logPrefix << "request failed";
+            return;
+        }
+        auto pagerData = jsonResp.find("data");
+        if (pagerData == jsonResp.end() || !pagerData->is_object())
+        {
+            PLOGE << logPrefix << "no 'data' or it's not an object";
+            return;
+        }
+        auto tagNode = pagerData->find("tag");
+        if (tagNode == pagerData->end() || !tagNode->is_object())
+        {
+            PLOGE << logPrefix << "no 'tag' or it's not an object";
+            return;
+        }
+        auto postPagerNode = tagNode->find("postPager");
+        if (postPagerNode == tagNode->end() || !postPagerNode->is_object())
+        {
+            PLOGE << logPrefix << "no 'postPager' or it's not an object";
+            return;
+        }
+        auto postPagerPostsNode = postPagerNode->find("posts");
+        if (postPagerPostsNode == postPagerNode->end() || !postPagerPostsNode->is_array())
+        {
+            PLOGE << logPrefix << "no 'postPager' 'posts' or it's not an array";
+            return;
+        }
+        if (!page)
+        {
+            auto postPagerCountNode = postPagerNode->find("count");
+            if (postPagerCountNode == postPagerNode->end() || !postPagerCountNode->is_number_unsigned())
             {
-                PLOGD << html;
+                PLOGE << logPrefix << "no 'postPager' 'count' or it's not an unsigned integer";
                 return;
             }
+            uint64_t totalCount = *postPagerCountNode;
+            page = (totalCount / 10) + ((totalCount % 10) != 0);
         }
-        nextUrl = nextPageUrl.url;
-        get_page_content_cleanup(&nextPageUrl);
-
-        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload ||
-            (lim > 0 && nextPageUrl.counter >= lim))
+        for (auto it = pagePos; it < postPagerPostsNode->size(); ++it)
         {
-            PLOGD << "Update completed: " << nextPageUrl.coincidenceCounter << ", " << nextPageUrl.counter;
+            switch (_parsePost((*postPagerPostsNode)[it], DBSql{}))
+            {
+            case PostParserStatus::Exists:
+                ++coincidenceCount;
+                break;
+            case PostParserStatus::Error:
+                PLOGW << logPrefix << std::format("there were some issues during the processing of the post");
+                break;
+            case PostParserStatus::Ok:
+                break;
+            }
+            ++totalProcessed;
+        }
+        pagePos = 0;
+        if (postPagerPostsNode->size() > 10)
+        {
+            auto overflow = postPagerPostsNode->size() - 10;
+            auto skipPages = overflow / 10;
+            pagePos = overflow % 10;
+            if (overflow >= page)
+            {
+                return;
+            }
+            page -= overflow;
+            PLOGW << logPrefix
+                  << std::format("posts overflow({}) skiped pages({}) skiped posts({}) next page({})", overflow,
+                                 skipPages, pagePos, page);
+        }
+        if (page <= 1)
+        {
+            return;
+        }
+        --page;
+
+        if (coincidenceCount > 3 || totalProcessed > _overload || (lim > 0 && totalProcessed >= lim))
+        {
+            PLOGD << "Update completed: " << coincidenceCount << ", " << totalProcessed;
             return;
         }
     }
@@ -611,7 +661,7 @@ void Parser::update(int32_t lim)
 
 ContentInfo Parser::getContentInfo(std::string_view link)
 {
-    auto resp = _request(link, _noRedirect, RequestType::Head);
+    auto resp = _request(link, RequestType::Head, _noRedirect);
     ContentInfo contentInfo;
     std::string size = resp.header["Content-Length"];
     try
@@ -635,7 +685,7 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
         PLOGE << "Can't open file: " << filePath;
         return false;
     }
-    _request(link, _noRedirect, RequestType::Download, &file);
+    _request(link, RequestType::Download, _noRedirect, &file);
     if (file.fail())
     {
         PLOGE << "An error occurred during file \"" << filePath << "\" writing";
@@ -644,7 +694,7 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
     return true;
 }
 
-cpr::Response Parser::_request(std::string_view url, cpr::Redirect redirect, RequestType type,
+cpr::Response Parser::_request(std::string_view url, RequestType type, cpr::Redirect redirect,
                                std::ofstream *const file, std::string_view query)
 {
     std::unique_lock lockGuard(_lock);

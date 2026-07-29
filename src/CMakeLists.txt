@@ -10,13 +10,11 @@ target_include_directories(reactor_kun_core PUBLIC ../include/ReactorKun)
 
 target_precompile_headers(reactor_kun_core PUBLIC ${HEADER_LIST})
 
-add_dependencies(reactor_kun_core reactor_parser)
-
 find_package(Threads REQUIRED)
 find_package(SQLite3 REQUIRED)
 
 target_link_libraries(reactor_kun_core PRIVATE ${CMAKE_THREAD_LIBS_INIT} Td::TdStatic dl
-                      SQLite3::SQLite3 cpr::cpr ${REACTOR_PARSER_LIB} htmlparser)
+                      SQLite3::SQLite3 cpr::cpr htmlparser)
 
 target_compile_options(reactor_kun_core PUBLIC
           #$<$<$<CXX_COMPILER_ID:Clang,GNU>:$<CONFIG:Debug>>:-fsanitize=thread -fsanitize=undefined>

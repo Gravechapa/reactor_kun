@@ -25,12 +25,9 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     _botName = user.value()->usernames_->editable_username_;
     _client.setCommands(COMMANDS);
 
-    Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
-    if (_config.isProxyEnabledForReactor())
-    {
-        Parser::setProxy(_config);
-    }
-    if (!BotDB::getBotDB().setCurrentReactorPath(urlDecode(_config.getReactorUrlPath())))
+    Parser::setup(_config);
+    if (!BotDB::getBotDB().setCurrentReactorFeed(
+            std::format("{} {}", _config.getReactorPopularity(), _config.getReactorTag())))
     {
         BotDB::getBotDB().clear();
     }

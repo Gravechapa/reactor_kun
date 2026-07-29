@@ -1,5 +1,4 @@
 #include "Config.hpp"
-#include "AuxiliaryFunctions.hpp"
 #include <plog/Log.h>
 
 enum class FieldType : bool
@@ -119,29 +118,27 @@ Config::Config(std::string configFile)
     _token = getString(json, "token").value();
     _superUserName = getString(json, "superUserName").value();
 
-    auto domain = getString(json, "domain").value();
-    auto popularity = getString(json, "popularity").value();
-
-    auto result = getObject(json, "tag", FieldType::Optional);
-    if (result)
+    _reactorDomain = getString(json, "domain", FieldType::Optional).value_or("modern");
+    if (_reactorDomain != "modern" && _reactorDomain != "new" && _reactorDomain != "old")
     {
-        auto parent = "tag";
-        auto tagJson = result.value();
-        auto tagMode = getUnsignedInteger<uint8_t>(tagJson, "mode", FieldType::Required, parent).value();
-        auto tag = getString(tagJson, "data", FieldType::Required, parent).value();
-        _processTag(tag, tagMode);
+        PLOGW << "Bad config: domain has unknown value, falling back to default(modern)";
+        _reactorDomain = "modern";
     }
-
-    auto errmsg = generateReactorUrl(domain, popularity);
-    if (!errmsg.empty())
+    _reactorPopularity = getString(json, "popularity").value();
+    if (_reactorPopularity != "all" && _reactorPopularity != "new" && _reactorPopularity != "good" &&
+        _reactorPopularity != "best" && _reactorPopularity != "discussion_all" &&
+        _reactorPopularity != "discussion_flame" && _reactorPopularity != "discussion_good")
     {
-        PLOGE << errmsg;
+        PLOGW << "Bad config: popularity has unknown value, falling back to default(best)";
+        _reactorPopularity = "best";
     }
-    PLOGI << "result url: " << _reactorDomain << _reactorUrlPath;
+    std::transform(_reactorPopularity.begin(), _reactorPopularity.end(), _reactorPopularity.begin(), ::toupper);
+
+    _reactorTag = getString(json, "tag", FieldType::Optional).value_or("");
 
     _filesDownloadingEnable = getBool(json, "enableFilesDownloading").value();
 
-    result = getObject(json, "proxy", FieldType::Optional);
+    auto result = getObject(json, "proxy", FieldType::Optional);
     if (result)
     {
         auto parent = "proxy";
@@ -171,83 +168,6 @@ Config::Config(std::string configFile)
     }
 }
 
-void Config::_processTag(std::string_view tag, uint8_t mode)
-{
-    switch (mode)
-    {
-    case 0:
-        _reactorTag = prepareTag(tag);
-        break;
-    case 1:
-        _reactorTag = tag;
-        break;
-    case 2:
-        _reactorTag = urlDecode(std::string(tag));
-        break;
-    default:
-        throw std::runtime_error("Bad config: unknown tag mode");
-    }
-}
-
-std::string Config::generateReactorUrl(std::string_view domain, std::string_view popularity)
-{
-    std::string errorMsg;
-    std::string result;
-    _reactorDomain = "https://";
-    if (domain == "old")
-    {
-        _reactorDomain += "old.reactor.cc/";
-    }
-    else if (domain == "new")
-    {
-        _reactorDomain += "joyreactor.cc/";
-    }
-    else
-    {
-        errorMsg += "domain has unknown value falling back to default(old)/";
-        _reactorDomain += "old.reactor.cc/";
-    }
-
-    if (!_reactorTag.empty())
-    {
-        result += "tag/" + urlEncode(_reactorTag) + "/";
-    }
-
-    if (popularity == "all")
-    {
-        if (_reactorTag.empty())
-        {
-            result += "new";
-        }
-        else
-        {
-            result += "all";
-        }
-    }
-    else if (popularity == "new")
-    {
-        if (_reactorTag.empty())
-        {
-            result += "all";
-        }
-        else
-        {
-            result += "new";
-        }
-    }
-    else if (popularity == "best")
-    {
-        result += "best";
-    }
-    else if (popularity != "good")
-    {
-        errorMsg += "popularity has unknown value falling back to default(best)/";
-        result += "best";
-    }
-    _reactorUrlPath.swap(result);
-    return errorMsg;
-}
-
 int32_t Config::getApiId() const
 {
     return _apiId;
@@ -273,9 +193,14 @@ const std::string &Config::getReactorDomain() const
     return _reactorDomain;
 }
 
-const std::string &Config::getReactorUrlPath() const
+const std::string &Config::getReactorTag() const
 {
-    return _reactorUrlPath;
+    return _reactorTag;
+}
+
+const std::string &Config::getReactorPopularity() const
+{
+    return _reactorPopularity;
 }
 
 bool Config::isFilesDownloadingEnabled() const
@@ -296,11 +221,6 @@ bool Config::isProxyEnabledForTelegram() const
 std::string Config::getProxy() const
 {
     return _proxyType + "://" + _proxyAddress + ":" + std::to_string(_proxyPort);
-}
-
-std::string Config::getProxyUsePwd() const
-{
-    return urlEncode(_proxyUser) + ':' + urlEncode(_proxyPassword);
 }
 
 std::string_view Config::getProxyType() const

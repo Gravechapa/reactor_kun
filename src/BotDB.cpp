@@ -416,22 +416,22 @@ void BotDB::clear()
     stmt.execute();
 }
 
-bool BotDB::setCurrentReactorPath(std::string_view path)
+bool BotDB::setCurrentReactorFeed(std::string_view feed)
 {
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
     {
-        PreparedStatment stmt(connection, "SELECT VALUE FROM flags WHERE NAME = \"ReactorPath\";");
+        PreparedStatment stmt(connection, "SELECT VALUE FROM flags WHERE NAME = \"ReactorFeed\";");
         if (stmt.next())
         {
-            if (stmt.getText(0) == path)
+            if (stmt.getText(0) == feed)
             {
                 return true;
             }
         }
     }
-    PreparedStatment stmt(connection, "INSERT OR REPLACE INTO flags (NAME, VALUE) VALUES (\"ReactorPath\", ?);");
-    stmt.bindText(1, path);
+    PreparedStatment stmt(connection, "INSERT OR REPLACE INTO flags (NAME, VALUE) VALUES (\"ReactorFeed\", ?);");
+    stmt.bindText(1, feed);
     stmt.execute();
     return false;
 }
