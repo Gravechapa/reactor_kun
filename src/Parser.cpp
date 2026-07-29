@@ -175,8 +175,12 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     static const auto reactorUrlRegax = std::regex(R"(^(/post/\d+|/tag/[^/?]+)$)");
     html::parser p;
     html::node_ptr node = p.parse(*textNode);
-    std::vector<html::node *> linkTags = node->select("a[href]");
-    for (auto linkTag : linkTags)
+    if (!node->select("img[alt='Censorship'],img[alt='Copywrite']").empty())
+    {
+        db.newReactorData(id, ElementType::CENSORSHIP, "🚫Censorship/Copywrite🚫", "");
+        return PostParserStatus::Ok;
+    }
+    for (auto linkTag : node->select("a[href]"))
     {
         auto link = linkTag->get_attr("href");
         html::node *textNode{nullptr};
