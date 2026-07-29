@@ -37,7 +37,7 @@ bool Parser::DBRaw::newReactorData(int64_t, ElementType type, std::string_view t
     }
     if (type != ElementType::TEXT)
     {
-        _post.emplace(new DataMessage(static_cast<ElementType>(type), data));
+        _post.emplace(new DataMessage(type, data));
     }
     return true;
 }
