@@ -21,7 +21,6 @@ Dimension getJpegResolution(std::string_view path);
 
 void textSplitter(std::string_view text, PostQueue &accumulator);
 
-const std::string_view russianLetters{"АаБбВвГгДдЕеЁёЖжЗзИиЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЪъЫыЬьЭэЮюЯя"};
 std::string urlDecode(const std::string &value);
 std::string urlEncode(const std::string &value, const std::string &additionalLegitChars = "");
 

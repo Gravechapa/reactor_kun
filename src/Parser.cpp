@@ -146,7 +146,12 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
         {
             auto tmp = tagNames[i] + "-";
             std::replace(tmp.begin(), tmp.end(), ' ', '-');
-            filePrefix += urlEncode(tmp, std::format("(){}", russianLetters));
+            // Remove characters that can cause issues with fs
+            tmp.erase(
+                std::remove_if(tmp.begin(), tmp.end(),
+                               [](char c) { return std::string_view(R"(/<>:"\|?*)").find(c) != std::string::npos; }),
+                tmp.end());
+            filePrefix += tmp;
         }
     }
     else

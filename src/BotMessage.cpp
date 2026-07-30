@@ -76,7 +76,7 @@ DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(ty
 
         ContentInfo info = Parser::getContentInfo(_url);
 
-        if (info.size == 0 || info.type.empty())
+        if (info.size == -1 || info.type.empty())
         {
             return;
         }
