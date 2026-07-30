@@ -1,10 +1,8 @@
 #include "BotDB.hpp"
 #include "AuxiliaryFunctions.hpp"
-#include <inttypes.h>
 #include <plog/Log.h>
 #include <sqlite3.h>
 #include <stdexcept>
-#include <utility>
 
 class Connection
 {

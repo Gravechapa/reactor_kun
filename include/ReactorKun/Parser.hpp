@@ -1,4 +1,6 @@
 #pragma once
+#include "BotDB.hpp"
+#include "BotMessage.hpp"
 #include "Config.hpp"
 #include <cpr/cpr.h>
 #include <mutex>
@@ -41,9 +43,15 @@ class Parser
     {
       public:
         virtual bool newReactorUrl([[maybe_unused]] int64_t id, [[maybe_unused]] std::string_view postLinks,
-                                   [[maybe_unused]] std::string_view tags) {};
+                                   [[maybe_unused]] std::string_view tags)
+        {
+            return true;
+        };
         virtual bool newReactorData([[maybe_unused]] int64_t id, [[maybe_unused]] ElementType type,
-                                    [[maybe_unused]] std::string_view text, [[maybe_unused]] std::string_view data) {};
+                                    [[maybe_unused]] std::string_view text, [[maybe_unused]] std::string_view data)
+        {
+            return true;
+        };
     };
     class DBRaw : public DBInterface
     {

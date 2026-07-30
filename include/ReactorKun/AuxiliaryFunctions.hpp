@@ -1,6 +1,5 @@
 #pragma once
 #include "BotMessage.hpp"
-#include <queue>
 #include <thread>
 
 template <class Rep, class Period>

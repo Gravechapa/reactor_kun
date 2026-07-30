@@ -1,10 +1,10 @@
 #include "Parser.hpp"
 #include "AuxiliaryFunctions.hpp"
-#include "BotDB.hpp"
 #include <base64.hpp>
 #include <fstream>
 #include <html.hpp>
 #include <plog/Log.h>
+#include <regex>
 import JoyReactorApi;
 
 const std::map<std::string_view, std::string_view> Parser::_domains{
@@ -651,6 +651,7 @@ void Parser::update(uint32_t lim)
             }
         }
         totalProcessed += postPagerPostsNode->size();
+        // It seems like reactor actually adds a new page when there's more than 4(or so) new posts.
         if (postPagerPostsNode->size() > 10)
         {
             PLOGD << logPrefix << std::format("posts overflow({}) skiping page", postPagerPostsNode->size());

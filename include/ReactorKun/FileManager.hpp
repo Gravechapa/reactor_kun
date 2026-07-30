@@ -1,5 +1,7 @@
 #pragma once
+#include <filesystem>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 

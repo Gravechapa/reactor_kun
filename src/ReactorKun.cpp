@@ -6,6 +6,7 @@
 #include <csignal>
 #include <functional>
 #include <plog/Log.h>
+#include <regex>
 
 constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char *>>({
     {"start", "Подписаться"},
