@@ -44,7 +44,7 @@ FileStatus FileManager::getFile(std::string_view link, std::string_view fileName
     case FileState::NOTLOADED:
         if (!Parser::getContent(link, _folderPath.string() + "/" + fileName.data()))
         {
-            fs::remove(_folderPath.string() + "/" + it->first);
+            fs::remove(_folderPath.string() + "/" + fileName.data());
             return FileStatus::ERROR;
         }
         data->first = 1;
