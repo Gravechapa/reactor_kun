@@ -16,6 +16,13 @@ enum class ElementType : int32_t
     Error
 };
 
+enum class NSFWType : int32_t
+{
+    SFW = 0,
+    NSFW,
+    Unsafe
+};
+
 class BotMessage
 {
   public:
@@ -25,6 +32,7 @@ class BotMessage
     virtual std::string getFilePath() const;
     virtual std::string_view getTags() const;
     virtual std::string_view getSignature() const;
+    virtual NSFWType getNsfwType() const;
 
   protected:
     BotMessage(ElementType type);
@@ -66,16 +74,18 @@ class PostHeaderMessage : public BotMessage
 {
   public:
     PostHeaderMessage();
-    PostHeaderMessage(std::string_view url, std::string_view tags);
+    PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType);
     PostHeaderMessage(PostHeaderMessage &&source) noexcept;
     PostHeaderMessage &operator=(PostHeaderMessage &&source) noexcept;
 
     std::string_view getUrl() const override;
     std::string_view getTags() const override;
+    NSFWType getNsfwType() const override;
 
   private:
     std::string _url{""};
     std::string _tags{""};
+    NSFWType _nsfwType;
 
     PostHeaderMessage(const PostHeaderMessage &) = delete;
     const PostHeaderMessage &operator=(const PostHeaderMessage &) = delete;

@@ -23,9 +23,9 @@ cpr::ProxyAuthentication Parser::_proxyAuth{};
 cpr::Cookies Parser::_cookies;
 cpr::Header Parser::_header;
 
-bool Parser::DBRaw::newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags)
+bool Parser::DBRaw::newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType)
 {
-    _post.emplace(new PostHeaderMessage(postLinks, tags));
+    _post.emplace(new PostHeaderMessage(postLinks, tags, nsfwType));
     return true;
 }
 
@@ -42,9 +42,9 @@ bool Parser::DBRaw::newReactorData(int64_t, ElementType type, std::string_view t
     return true;
 }
 
-bool Parser::DBSql::newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags)
+bool Parser::DBSql::newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType)
 {
-    return _db.newReactorUrl(id, postLinks, tags);
+    return _db.newReactorUrl(id, postLinks, tags, nsfwType);
 }
 
 bool Parser::DBSql::newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data)
@@ -162,9 +162,36 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     {
         filePrefix = "picture-";
     }
+    ////////////////////////////////////////post nsfw/unsafe////////////////////////////////////////
+    auto postNsfw = postNode.find("nsfw");
+    if (postNsfw == postNode.end() || !postNsfw->is_boolean())
+    {
+        PLOGE << logPrefix << "no 'nsfw' or it's not a boolean";
+        return PostParserStatus::Error;
+    }
+    auto postUnsafe = postNode.find("unsafe");
+    if (postUnsafe == postNode.end() || !postUnsafe->is_boolean())
+    {
+        PLOGE << logPrefix << "no 'unsafe' or it's not a boolean";
+        return PostParserStatus::Error;
+    }
+    NSFWType nsfwType;
+    if (*postUnsafe == true)
+    {
+        nsfwType = NSFWType::Unsafe;
+    }
+    else if (*postNsfw == true)
+    {
+        nsfwType = NSFWType::NSFW;
+    }
+    else
+    {
+        nsfwType = NSFWType::SFW;
+    }
+
     auto links = std::format("[Modern]({1}/post/{0}) [New]({2}/post/{0}) [Old]({3}/post/{0}) ", id,
                              _domains.at("modern"), _domains.at("new"), _domains.at("old"));
-    if (!db.newReactorUrl(id, links, tags))
+    if (!db.newReactorUrl(id, links, tags, nsfwType))
     {
         return PostParserStatus::Exists;
     }

@@ -9,7 +9,7 @@
 #include <regex>
 
 constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char *>>({
-    {"start", "Подписаться"},
+    {"start", "Подписаться, аргументы(комбинации): swf, nsfw, unsafe. По умолчанию: sfw nsfw"},
     {"stop", "Отписаться"},
     {"latest", "Получить последний пост"},
     {"random", "Получить случайный пост"},
@@ -40,7 +40,7 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     // Load information about chats https://github.com/tdlib/td/issues/791
     for (auto listener : BotDB::getBotDB().getListeners())
     {
-        _client.getChat(listener);
+        _client.getChat(listener.first);
     }
     _messageStatusChecker = std::jthread(std::bind_front(&ReactorKun::_onMessageStatusUpdate, this));
     _mailer = std::jthread(std::bind_front(&ReactorKun::_mailerHandler, this));
@@ -159,15 +159,76 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     }
 
     PLOGD << "Incoming msg: " << chatId << ", " << username << ", " << firstName << ", " << text;
-    if (text == addCMD)
+    if (text.substr(0, addCMD.size()) == addCMD)
     {
-        if (!BotDB::getBotDB().newListener(chatId, username, firstName, lastName))
+        auto remainText = text.substr(addCMD.size());
+        auto split_view = remainText | std::views::split(' ');
+        bool sfw{false};
+        bool nsfw{false};
+        bool unsafe{false};
+        for (const auto &part : split_view)
+        {
+            auto textPart = std::string_view(part.begin(), part.end());
+            if (textPart == "sfw")
+            {
+                sfw = true;
+            }
+            else if (textPart == "nsfw")
+            {
+                nsfw = true;
+            }
+            else if (textPart == "unsafe")
+            {
+                unsafe = true;
+            }
+        }
+        NSFWFilter nsfwFilter;
+        std::string msg;
+        if (!sfw && !nsfw && !unsafe)
+        {
+            nsfwFilter = NSFWFilter::NSFW;
+            msg = "стандартный фильтр: sfw + nsfw.";
+        }
+        else
+        {
+            if (sfw)
+            {
+                if (unsafe)
+                {
+                    nsfwFilter = NSFWFilter::Unsafe;
+                    msg = "фильтр: sfw + unsafe.";
+                }
+                else if (nsfw)
+                {
+                    nsfwFilter = NSFWFilter::NSFW;
+                    msg = "фильтр: sfw + nsfw.";
+                }
+                else
+                {
+                    nsfwFilter = NSFWFilter::SFW;
+                    msg = "фильтр: только sfw.";
+                }
+            }
+            else
+            {
+                if (unsafe)
+                {
+                    nsfwFilter = NSFWFilter::OnlyUnsafe;
+                    msg = "фильтр: только unsafe.";
+                }
+                else
+                {
+                    nsfwFilter = NSFWFilter::OnlyNSFW;
+                    msg = "фильтр: только nsfw.";
+                }
+            }
+        }
+
+        if (!BotDB::getBotDB().newListener(chatId, username, firstName, lastName, nsfwFilter))
         {
             return;
         }
-        _threadPool.addTextToSend({chatId}, "The Beast is Back");
-        auto post = BotDB::getBotDB().getLatestReactorPost();
-        _threadPool.addPostsToSend({chatId}, post);
+        _threadPool.addTextToSend({chatId}, "Добавил в рассылку, " + msg);
         return;
     }
 
@@ -175,7 +236,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     {
         if (BotDB::getBotDB().deleteListener(chatId))
         {
-            _threadPool.addTextToSend({chatId}, "Удалил.");
+            _threadPool.addTextToSend({chatId}, "Удалил из рассылки.");
             return;
         }
         return;
@@ -410,8 +471,59 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
             PLOGD << "New messages: " << posts.size();
 
-            _threadPool.addPostsToSend(listeners, posts);
-
+            if (!posts.empty() && posts.front()->getType() != ElementType::HEADER)
+            {
+                PLOGE << "First message is not a header";
+                while (!posts.empty())
+                {
+                    PLOGE << "Removing element type: " << std::to_underlying(posts.front()->getType());
+                    posts.pop();
+                    if (posts.front()->getType() == ElementType::HEADER)
+                    {
+                        break;
+                    }
+                }
+            }
+            while (!posts.empty())
+            {
+                std::vector<int64_t> currentListeners;
+                auto nsfwType = posts.front()->getNsfwType();
+                for (auto &listener : listeners)
+                {
+                    switch (nsfwType)
+                    {
+                    case NSFWType::SFW:
+                        if (listener.second == NSFWFilter::SFW || listener.second == NSFWFilter::NSFW ||
+                            listener.second == NSFWFilter::Unsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    case NSFWType::NSFW:
+                        if (listener.second == NSFWFilter::NSFW || listener.second == NSFWFilter::Unsafe ||
+                            listener.second == NSFWFilter::OnlyNSFW || listener.second == NSFWFilter::OnlyUnsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    case NSFWType::Unsafe:
+                        if (listener.second == NSFWFilter::Unsafe || listener.second == NSFWFilter::OnlyUnsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    }
+                }
+                PostQueue post;
+                post.push(posts.front());
+                posts.pop();
+                while (!posts.empty() && posts.front()->getType() != ElementType::HEADER)
+                {
+                    post.push(posts.front());
+                    posts.pop();
+                }
+                _threadPool.addPostsToSend(currentListeners, post);
+            }
             BotDB::getBotDB().markReactorPostsAsSent();
             BotDB::getBotDB().deleteOldReactorPosts(1000);
 

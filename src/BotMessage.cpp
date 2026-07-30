@@ -44,6 +44,11 @@ std::string_view BotMessage::getSignature() const
     return "";
 }
 
+NSFWType BotMessage::getNsfwType() const
+{
+    return NSFWType::SFW;
+}
+
 TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::TEXT), _text(text)
 {
 }
@@ -150,8 +155,8 @@ PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::HEADER)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags)
-    : BotMessage(ElementType::HEADER), _url(url), _tags(tags)
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType)
+    : BotMessage(ElementType::HEADER), _url(url), _tags(tags), _nsfwType(nsfwType)
 {
 }
 
@@ -175,6 +180,11 @@ std::string_view PostHeaderMessage::getUrl() const
 std::string_view PostHeaderMessage::getTags() const
 {
     return _tags;
+}
+
+NSFWType PostHeaderMessage::getNsfwType() const
+{
+    return _nsfwType;
 }
 
 PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::FOOTER)
