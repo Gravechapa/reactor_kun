@@ -5,6 +5,7 @@
 #include <html.hpp>
 #include <plog/Log.h>
 #include <regex>
+#include <utf8_string.hpp>
 import JoyReactorApi;
 
 const std::map<std::string_view, std::string_view> Parser::_domains{
@@ -161,6 +162,16 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     if (filePrefix.empty())
     {
         filePrefix = "picture-";
+    }
+    else if (filePrefix.size() > 225) // filesystems don't like this shit
+    {
+        UTF8string utfFilePrefix{filePrefix};
+        while (utfFilePrefix.utf8_size() > 225)
+        {
+            utfFilePrefix.utf8_pop();
+        }
+        filePrefix = utfFilePrefix.utf8_sstring();
+        filePrefix += '-';
     }
     ////////////////////////////////////////post nsfw/unsafe////////////////////////////////////////
     auto postNsfw = postNode.find("nsfw");
