@@ -331,9 +331,10 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
             textNode->content = link;
         }
     }
-    ////////////////////////////////////////post attributes/////////////////////////////////////////
     auto text = node->to_text();
     trim(text);
+    text = unescapeHtml(text); // mitigate imperfect parsing
+    ////////////////////////////////////////post attributes/////////////////////////////////////////
     std::string attrMagic = "&attribute_insert_";
     std::vector<std::pair<int32_t, std::reference_wrapper<nlohmann::json>>> attrs;
     auto attrsNode = postNode.find("attributes");

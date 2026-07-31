@@ -1,6 +1,5 @@
 #include "AuxiliaryFunctions.hpp"
 #include "TgLimits.hpp"
-#include <fstream>
 #include <iomanip>
 #include <plog/Log.h>
 #include <utf8_string.hpp>
@@ -135,4 +134,22 @@ void trim(std::string &str)
     {
         str.erase(str.size() - 1, 1); // Erase from the end
     }
+}
+
+std::string unescapeHtml(std::string_view text)
+{
+    std::vector<std::pair<std::string, char>> htmlEntities = {
+        {"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'}, {"&quot;", '"'}, {"&apos;", '\''}};
+
+    std::string result{text};
+    for (const auto &entity : htmlEntities)
+    {
+        size_t pos = 0;
+        while ((pos = result.find(entity.first, pos)) != std::string::npos)
+        {
+            result.replace(pos, entity.first.length(), 1, entity.second);
+            pos++;
+        }
+    }
+    return result;
 }
