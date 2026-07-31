@@ -378,7 +378,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                                        std::format("*Ссылка:* {} *Автор:* {}\n*Теги:* {}\n*Дата:* {} *Рейтинг:* {}",
                                                    message->getUrl(), message->getUsername(), message->getTags(),
                                                    message->getDate(),
-                                                   escapeString(std::format("{:.1f}", message->getRating()), ".")),
+                                                   escapeString(std::format("{:.1f}", message->getRating()), ".-")),
                                        TextType::MarkdownV2, true, true);
         break;
     case ElementType::TEXT:

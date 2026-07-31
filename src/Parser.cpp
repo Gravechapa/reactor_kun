@@ -234,9 +234,9 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     ////////////////////////////////////////post rating/////////////////////////////////////////////
     float rating{0.0f};
     auto postRating = postNode.find("rating");
-    if (postRating == postNode.end() || !postRating->is_number_float())
+    if (postRating == postNode.end() || !postRating->is_number())
     {
-        PLOGW << logPrefix << "no 'rating' or it's not a float";
+        PLOGW << logPrefix << "no 'rating' or it's not a number";
     }
     else
     {
