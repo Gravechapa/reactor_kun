@@ -268,16 +268,77 @@ std::optional<td_api::object_ptr<td_api::message>> TgClient::sendDocument(
 
 std::optional<td_api::object_ptr<td_api::message>> TgClient::sendPhoto(
     td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text, TextType parseMode,
-    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
+    bool hasSpoiler, bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
 {
     auto inputPhoto = td_api::make_object<td_api::inputMessagePhoto>();
     inputPhoto->photo_ = td_api::make_object<td_api::inputPhoto>();
     inputPhoto->photo_->photo_ = std::move(photo);
+    inputPhoto->has_spoiler_ = hasSpoiler;
     if (!text.empty())
     {
         inputPhoto->caption_ = _parseText(text, parseMode);
     }
     auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputPhoto));
+    if (_errorCheck(response))
+    {
+        return std::nullopt;
+    }
+    return td_api::move_object_as<td_api::message>(response);
+}
+
+std::optional<td_api::object_ptr<td_api::message>> TgClient::sendVideo(
+    td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&video,
+    td_api::object_ptr<td_api::InputFile> &&thumbnail, td_api::object_ptr<td_api::InputFile> &&cover,
+    const std::string &text, TextType parseMode, bool supportsStreaming, bool hasSpoiler, bool disableNotification,
+    td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
+{
+    auto inputVideo = td_api::make_object<td_api::inputMessageVideo>();
+    inputVideo->video_ = td_api::make_object<td_api::inputVideo>();
+    inputVideo->video_->video_ = std::move(video);
+    inputVideo->video_->supports_streaming_ = supportsStreaming;
+    inputVideo->has_spoiler_ = hasSpoiler;
+    if (thumbnail)
+    {
+        auto inputThumbnail = td_api::make_object<td_api::inputThumbnail>();
+        inputThumbnail->thumbnail_ = std::move(thumbnail);
+        inputVideo->video_->thumbnail_ = std::move(inputThumbnail);
+    }
+    if (cover)
+    {
+        inputVideo->video_->cover_ = std::move(cover);
+    }
+    if (!text.empty())
+    {
+        inputVideo->caption_ = _parseText(text, parseMode);
+    }
+    auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputVideo));
+    if (_errorCheck(response))
+    {
+        return std::nullopt;
+    }
+    return td_api::move_object_as<td_api::message>(response);
+}
+
+std::optional<td_api::object_ptr<td_api::message>> TgClient::sendAnimation(
+    td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&animation,
+    td_api::object_ptr<td_api::InputFile> &&thumbnail, const std::string &text, TextType parseMode, bool hasSpoiler,
+    bool disableNotification, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo)
+{
+    auto inputAnimation = td_api::make_object<td_api::inputMessageAnimation>();
+    inputAnimation->animation_ = td_api::make_object<td_api::inputAnimation>();
+    inputAnimation->animation_->animation_ = std::move(animation);
+    inputAnimation->has_spoiler_ = hasSpoiler;
+    if (thumbnail)
+    {
+        auto inputThumbnail = td_api::make_object<td_api::inputThumbnail>();
+        inputThumbnail->thumbnail_ = std::move(thumbnail);
+        inputAnimation->animation_->thumbnail_ = std::move(inputThumbnail);
+    }
+    if (!text.empty())
+    {
+        inputAnimation->caption_ = _parseText(text, parseMode);
+    }
+    auto response = _sendMessage(chatId, std::move(replyTo), disableNotification, std::move(inputAnimation));
     if (_errorCheck(response))
     {
         return std::nullopt;

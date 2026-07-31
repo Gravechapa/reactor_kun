@@ -407,7 +407,7 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls, PreparedStatm
                 {
                     textSplitter(text, accumulator);
                 }
-                if (type != ElementType::TEXT)
+                if (type != ElementType::Text)
                 {
                     accumulator.emplace(new DataMessage(type, resultSetData.getText(3)));
                 }

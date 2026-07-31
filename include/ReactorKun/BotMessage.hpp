@@ -6,14 +6,16 @@
 
 enum class ElementType : int32_t
 {
-    TEXT = 0,
-    IMG,
-    DOCUMENT,
+    Header = 0,
+    Footer,
+    Error,
+    Censorship,
+    Text,
     URL,
-    CENSORSHIP,
-    HEADER,
-    FOOTER,
-    Error
+    Document,
+    Photo,
+    Video,
+    Animation
 };
 
 enum class NSFWType : int32_t

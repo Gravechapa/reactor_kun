@@ -10,14 +10,6 @@ inline void wait(const std::chrono::duration<Rep, Period> &duration,
     time_point = std::chrono::high_resolution_clock::now();
 }
 
-struct Dimension
-{
-    int32_t width{0};
-    int32_t height{0};
-};
-
-Dimension getJpegResolution(std::string_view path);
-
 void textSplitter(std::string_view text, PostQueue &accumulator);
 
 std::string urlDecode(const std::string &value);

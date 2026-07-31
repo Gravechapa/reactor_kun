@@ -150,7 +150,7 @@ void ThreadPool::addTextToSend(std::vector<int64_t> &&listeners, std::string_vie
 
 void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view url)
 {
-    std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::IMG, url));
+    std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::Photo, url));
     std::lock_guard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {

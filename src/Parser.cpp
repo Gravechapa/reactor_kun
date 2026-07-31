@@ -1,10 +1,10 @@
 #include "Parser.hpp"
 #include "AuxiliaryFunctions.hpp"
+#include "TgLimits.hpp"
 #include <base64.hpp>
 #include <chrono>
 #include <fstream>
 #include <html.hpp>
-#include <iostream>
 #include <plog/Log.h>
 #include <regex>
 #include <utf8_string.hpp>
@@ -43,7 +43,7 @@ bool Parser::DBRaw::newReactorData(int64_t, ElementType type, std::string_view t
     {
         textSplitter(text, _post);
     }
-    if (type != ElementType::TEXT)
+    if (type != ElementType::Text)
     {
         _post.emplace(new DataMessage(type, data));
     }
@@ -287,7 +287,7 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     html::node_ptr node = p.parse(*textNode);
     if (!node->select("img[alt='Censorship'],img[alt='Copywrite']").empty())
     {
-        db.newReactorData(id, ElementType::CENSORSHIP, "🚫Censorship/Copywrite🚫", "");
+        db.newReactorData(id, ElementType::Censorship, "🚫Censorship/Copywrite🚫", "");
         return PostParserStatus::Ok;
     }
     for (auto linkTag : node->select("a[href]"))
@@ -424,7 +424,7 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
             PLOGE << logPrefix << "attribute parse issues, falling back to text";
             if (!currentText.empty())
             {
-                db.newReactorData(id, ElementType::TEXT, currentText, "");
+                db.newReactorData(id, ElementType::Text, currentText, "");
             }
         };
         if (*attrTypeNode == "YOUTUBE")
@@ -532,8 +532,8 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
                 if (*arrtImgTypeNode == "PNG" || *arrtImgTypeNode == "JPEG" || *arrtImgTypeNode == "BMP" ||
                     *arrtImgTypeNode == "TIFF" || *arrtImgTypeNode == "WEBP")
                 {
-                    uint32_t width{0};
-                    uint32_t height{0};
+                    uint32_t width{std::numeric_limits<uint32_t>::max()};
+                    uint32_t height{std::numeric_limits<uint32_t>::max()};
                     auto arrtImgWidthNode = attrImgNode->find("width");
                     auto arrtImgHeightNode = attrImgNode->find("height");
                     if (arrtImgWidthNode != attrImgNode->end() && arrtImgWidthNode->is_number_unsigned() &&
@@ -541,8 +541,6 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
                     {
                         width = *arrtImgWidthNode;
                         height = *arrtImgHeightNode;
-                        (void)width;
-                        (void)height; // TODO
                     }
                     else
                     {
@@ -553,7 +551,13 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
                     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                     std::string dataUrl =
                         std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
-                    db.newReactorData(id, ElementType::IMG, currentText, dataUrl);
+                    if (*arrtImgTypeNode == "JPEG" && width <= TgLimits::maxPhotoDimension &&
+                        height <= TgLimits::maxPhotoDimension)
+                    {
+                        db.newReactorData(id, ElementType::Photo, currentText, dataUrl);
+                        continue;
+                    }
+                    db.newReactorData(id, ElementType::Document, currentText, dataUrl);
                     continue;
                 }
                 else if (*arrtImgTypeNode == "MP4" || *arrtImgTypeNode == "WEBM" || *arrtImgTypeNode == "GIF")
@@ -578,9 +582,18 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
                         ext = *arrtImgTypeNode;
                         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                     }
-                    std::string dataUrl =
-                        std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
-                    db.newReactorData(id, ElementType::DOCUMENT, currentText, dataUrl);
+                    if (ext == "gif")
+                    {
+                        std::string dataUrl =
+                            std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                        db.newReactorData(id, ElementType::Animation, currentText, dataUrl);
+                    }
+                    else
+                    {
+                        std::string dataUrl =
+                            std::format("{}/{}/mp4/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                        db.newReactorData(id, ElementType::Video, currentText, dataUrl);
+                    }
                     continue;
                 }
                 PLOGW << logPrefix << "unknown attribute 'image' 'type' " << *arrtImgTypeNode;
@@ -600,7 +613,7 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     trim(text);
     if (!text.empty())
     {
-        db.newReactorData(id, ElementType::TEXT, text, "");
+        db.newReactorData(id, ElementType::Text, text, "");
     }
     return PostParserStatus::Ok;
 }

@@ -373,7 +373,7 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     std::lock_guard lock(_messagesCacheLock);
     switch (message->getType())
     {
-    case ElementType::HEADER:
+    case ElementType::Header:
         response = _client.sendMessage(listener,
                                        std::format("*Ссылка:* {} *Автор:* {}\n*Теги:* {}\n*Дата:* {} *Рейтинг:* {}",
                                                    message->getUrl(), message->getUsername(), message->getTags(),
@@ -381,25 +381,32 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                                                    escapeString(std::format("{:.1f}", message->getRating()), ".-")),
                                        TextType::MarkdownV2, true, true);
         break;
-    case ElementType::TEXT:
+    case ElementType::Text:
         response = _client.sendMessage(listener, message->getText().data(), TextType::Plain, true, true);
         break;
     case ElementType::URL:
         response = _client.sendMessage(listener, message->getUrl().data(), TextType::Plain, false, true);
         break;
-    case ElementType::IMG:
-        response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, true);
+    case ElementType::Photo:
+        response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, false, true);
         break;
-    case ElementType::DOCUMENT:
+    case ElementType::Video:
+        response = _client.sendVideo(listener, prepareFile(message.get()), nullptr, nullptr, "", TextType::Plain, true,
+                                     false, true);
+        break;
+    case ElementType::Animation:
         response =
-            _client.sendDocument(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, false, true);
+            _client.sendAnimation(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, false, true);
         break;
-    case ElementType::CENSORSHIP: {
+    case ElementType::Document:
+        response = _client.sendDocument(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, true, true);
+        break;
+    case ElementType::Censorship: {
         auto file = td_api::make_object<td_api::inputFileLocal>("censorship.jpg");
         response = _client.sendPhoto(listener, std::move(file), "", TextType::Plain, true);
         break;
     }
-    case ElementType::FOOTER:
+    case ElementType::Footer:
         // Issue with utf-8 character
         // clang-format off
         response =
@@ -473,14 +480,14 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
             PLOGD << "New messages: " << posts.size();
 
-            if (!posts.empty() && posts.front()->getType() != ElementType::HEADER)
+            if (!posts.empty() && posts.front()->getType() != ElementType::Header)
             {
                 PLOGE << "First message is not a header";
                 while (!posts.empty())
                 {
                     PLOGE << "Removing element type: " << std::to_underlying(posts.front()->getType());
                     posts.pop();
-                    if (posts.front()->getType() == ElementType::HEADER)
+                    if (posts.front()->getType() == ElementType::Header)
                     {
                         break;
                     }
@@ -519,7 +526,7 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
                 PostQueue post;
                 post.push(posts.front());
                 posts.pop();
-                while (!posts.empty() && posts.front()->getType() != ElementType::HEADER)
+                while (!posts.empty() && posts.front()->getType() != ElementType::Header)
                 {
                     post.push(posts.front());
                     posts.pop();
