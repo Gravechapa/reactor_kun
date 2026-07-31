@@ -1,8 +1,10 @@
 #include "Parser.hpp"
 #include "AuxiliaryFunctions.hpp"
 #include <base64.hpp>
+#include <chrono>
 #include <fstream>
 #include <html.hpp>
+#include <iostream>
 #include <plog/Log.h>
 #include <regex>
 #include <utf8_string.hpp>
@@ -10,6 +12,10 @@ import JoyReactorApi;
 
 const std::map<std::string_view, std::string_view> Parser::_domains{
     {"modern", "https://joyreactor.cc"}, {"new", "https://reactor.cc"}, {"old", "https://old.reactor.cc"}};
+
+static constexpr size_t MaxFilenameSize = 225;
+static constexpr std::string_view MarkdownUrlEscape{R"()\)"};
+static constexpr std::string_view MarkdownEscape{R"(_*[]()~`>#+-=|{}.!)"};
 
 std::mutex Parser::_lock;
 std::chrono::high_resolution_clock::time_point Parser::_timePoint = std::chrono::high_resolution_clock::now();
@@ -24,9 +30,10 @@ cpr::ProxyAuthentication Parser::_proxyAuth{};
 cpr::Cookies Parser::_cookies;
 cpr::Header Parser::_header;
 
-bool Parser::DBRaw::newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType)
+bool Parser::DBRaw::newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                                  std::string username, float rating, std::string date)
 {
-    _post.emplace(new PostHeaderMessage(postLinks, tags, nsfwType));
+    _post.emplace(new PostHeaderMessage(postLinks, tags, nsfwType, username, rating, date));
     return true;
 }
 
@@ -43,14 +50,15 @@ bool Parser::DBRaw::newReactorData(int64_t, ElementType type, std::string_view t
     return true;
 }
 
-bool Parser::DBSql::newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType)
+bool Parser::DBSql::newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                                  std::string username, float rating, std::string date)
 {
-    return _db.newReactorUrl(id, postLinks, tags, nsfwType);
+    return _db.newReactorUrl(id, postLinks, tags, nsfwType, username, rating, date);
 }
 
 bool Parser::DBSql::newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data)
 {
-    return _db.newReactorData(id, type, text, data.data());
+    return _db.newReactorData(id, type, text, data);
 }
 bool Parser::_checkApiError(nlohmann::json &resp)
 {
@@ -132,9 +140,9 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
         {
             auto preparedTag = prepareTag(tagNames[i]);
             preparedTag = std::format("/tag/{}", urlEncode(preparedTag, "()"));
-            preparedTag = escapeString(preparedTag, R"()\)");                      // for markdown v2
-            auto escapedName = escapeString(tagNames[i], R"(_*[]()~`>#+-=|{}.!)"); // for markdown v2
-            tags += std::format("[{1}]({2}{0})[🆕]({3}{0})[🕸]({4}{0}) ", preparedTag, escapedName,
+            preparedTag = escapeString(preparedTag, MarkdownUrlEscape);   // for markdown v2
+            auto escapedName = escapeString(tagNames[i], MarkdownEscape); // for markdown v2
+            tags += std::format("[{1}]({2}{0}) [🅝]({3}{0}) [🅞]({4}{0}) ", preparedTag, escapedName,
                                 _domains.at("modern"), _domains.at("new"), _domains.at("old"));
         }
         if (sizeLimit != tagNames.size())
@@ -163,10 +171,10 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     {
         filePrefix = "picture-";
     }
-    else if (filePrefix.size() > 225) // filesystems don't like this shit
+    else if (filePrefix.size() > MaxFilenameSize) // filesystems don't like this shit
     {
         UTF8string utfFilePrefix{filePrefix};
-        while (utfFilePrefix.utf8_size() > 225)
+        while (utfFilePrefix.utf8_size() > MaxFilenameSize)
         {
             utfFilePrefix.utf8_pop();
         }
@@ -174,35 +182,94 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
         filePrefix += '-';
     }
     ////////////////////////////////////////post nsfw/unsafe////////////////////////////////////////
-    auto postNsfw = postNode.find("nsfw");
-    if (postNsfw == postNode.end() || !postNsfw->is_boolean())
-    {
-        PLOGE << logPrefix << "no 'nsfw' or it's not a boolean";
-        return PostParserStatus::Error;
-    }
-    auto postUnsafe = postNode.find("unsafe");
-    if (postUnsafe == postNode.end() || !postUnsafe->is_boolean())
-    {
-        PLOGE << logPrefix << "no 'unsafe' or it's not a boolean";
-        return PostParserStatus::Error;
-    }
     NSFWType nsfwType;
-    if (*postUnsafe == true)
+    auto postNsfw = postNode.find("nsfw");
+    auto postUnsafe = postNode.find("unsafe");
+    if (postNsfw == postNode.end() || !postNsfw->is_boolean() || postUnsafe == postNode.end() ||
+        !postUnsafe->is_boolean())
     {
+        PLOGE << logPrefix << "no 'nsfw'/'unsafe' or they are not booleans, falling back to unsafe";
         nsfwType = NSFWType::Unsafe;
-    }
-    else if (*postNsfw == true)
-    {
-        nsfwType = NSFWType::NSFW;
     }
     else
     {
-        nsfwType = NSFWType::SFW;
+        if (*postUnsafe == true)
+        {
+            nsfwType = NSFWType::Unsafe;
+        }
+        else if (*postNsfw == true)
+        {
+            nsfwType = NSFWType::NSFW;
+        }
+        else
+        {
+            nsfwType = NSFWType::SFW;
+        }
+    }
+    ////////////////////////////////////////post user///////////////////////////////////////////////
+    std::string username{};
+    auto postUser = postNode.find("user");
+    if (postUser == postNode.end() || !postUser->is_object())
+    {
+        PLOGE << logPrefix << "no 'user' or it's not an object";
+    }
+    else
+    {
+        auto postUserUsername = postUser->find("username");
+        if (postUserUsername == postUser->end() || !postUserUsername->is_string())
+        {
+            PLOGE << logPrefix << "'user' has no 'username' or it's not a string";
+        }
+        else
+        {
+            username = *postUserUsername;
+            auto preparedUsername = prepareTag(username);
+            preparedUsername = std::format("/user/{}", urlEncode(preparedUsername, "()"));
+            preparedUsername = escapeString(preparedUsername, MarkdownUrlEscape); // for markdown v2
+            auto escapedUsername = escapeString(username, MarkdownEscape);        // for markdown v2
+            username = std::format("[{1}]({2}{0}) [🅝]({3}{0}) [🅞]({4}{0}) ", preparedUsername, escapedUsername,
+                                   _domains.at("modern"), _domains.at("new"), _domains.at("old"));
+        }
+    }
+    ////////////////////////////////////////post rating/////////////////////////////////////////////
+    float rating{0.0f};
+    auto postRating = postNode.find("rating");
+    if (postRating == postNode.end() || !postRating->is_number_float())
+    {
+        PLOGW << logPrefix << "no 'rating' or it's not a float";
+    }
+    else
+    {
+        rating = *postRating;
+    }
+    ////////////////////////////////////////post date///////////////////////////////////////////////
+    std::string date{};
+    auto postCreatedAt = postNode.find("createdAt");
+    if (postCreatedAt == postNode.end() || !postCreatedAt->is_string())
+    {
+        PLOGE << logPrefix << "no 'createdAt' or it's not a string";
+    }
+    else
+    {
+        std::chrono::sys_time<std::chrono::seconds> timePoint;
+        std::istringstream is(postCreatedAt->get<std::string>());
+        // ISO 8601 with offset
+        is >> std::chrono::parse("%Y-%m-%dT%H:%M:%S%z", timePoint);
+        if (is.fail())
+        {
+            PLOGE << logPrefix << "date parse failed" << *postCreatedAt;
+        }
+        else
+        {
+            date = std::format("![{0:%d}\\.{0:%m}\\.{0:%y}, {0:%R}](tg://time?unix={1}&format=dt)", timePoint,
+                               std::chrono::system_clock::to_time_t(timePoint));
+        }
     }
 
+    ////////////////////////////////////////Add new url/////////////////////////////////////////////
     auto links = std::format("[Modern]({1}/post/{0}) [New]({2}/post/{0}) [Old]({3}/post/{0}) ", id,
                              _domains.at("modern"), _domains.at("new"), _domains.at("old"));
-    if (!db.newReactorUrl(id, links, tags, nsfwType))
+    if (!db.newReactorUrl(id, links, tags, nsfwType, username, rating, date))
     {
         return PostParserStatus::Exists;
     }

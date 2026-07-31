@@ -49,6 +49,21 @@ NSFWType BotMessage::getNsfwType() const
     return NSFWType::SFW;
 }
 
+std::string_view BotMessage::getUsername() const
+{
+    return "";
+}
+
+float BotMessage::getRating() const
+{
+    return 0.0f;
+}
+
+std::string_view BotMessage::getDate() const
+{
+    return "";
+}
+
 TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::TEXT), _text(text)
 {
 }
@@ -155,8 +170,10 @@ PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::HEADER)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType)
-    : BotMessage(ElementType::HEADER), _url(url), _tags(tags), _nsfwType(nsfwType)
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType,
+                                     std::string username, float rating, std::string date)
+    : BotMessage(ElementType::HEADER), _url(url), _tags(tags), _nsfwType(nsfwType), _username(username),
+      _rating(rating), _date(date)
 {
 }
 
@@ -169,6 +186,10 @@ PostHeaderMessage &PostHeaderMessage::operator=(PostHeaderMessage &&source) noex
 {
     _url = std::move(source._url);
     _tags = std::move(source._tags);
+    _nsfwType = source._nsfwType;
+    _username = std::move(source._username);
+    _rating = source._rating;
+    _date = std::move(source._date);
     return *this;
 }
 
@@ -185,6 +206,21 @@ std::string_view PostHeaderMessage::getTags() const
 NSFWType PostHeaderMessage::getNsfwType() const
 {
     return _nsfwType;
+}
+
+std::string_view PostHeaderMessage::getUsername() const
+{
+    return _username;
+}
+
+float PostHeaderMessage::getRating() const
+{
+    return _rating;
+}
+
+std::string_view PostHeaderMessage::getDate() const
+{
+    return _date;
 }
 
 PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::FOOTER)

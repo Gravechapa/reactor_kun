@@ -80,6 +80,14 @@ class PreparedStatment
         }
     }
 
+    void bindDouble(int pos, double value)
+    {
+        if (sqlite3_bind_double(_statment, pos, value) != SQLITE_OK)
+        {
+            throw std::runtime_error("Can't bind double to PreparedStatment");
+        }
+    }
+
     void bindText(int pos, std::string_view value)
     {
         if (sqlite3_bind_text64(_statment, pos, value.data(), value.size(), SQLITE_TRANSIENT, SQLITE_UTF8) != SQLITE_OK)
@@ -138,6 +146,11 @@ class PreparedStatment
     sqlite3_int64 getInt64(int col) const noexcept
     {
         return sqlite3_column_int64(_statment, col);
+    }
+
+    double getDouble(int col) const noexcept
+    {
+        return sqlite3_column_double(_statment, col);
     }
 
     std::string getText(int col) const noexcept
@@ -203,7 +216,10 @@ BotDB::BotDB(std::string_view path)
                                       " URL TEXT NOT NULL,"
                                       " TAGS TEXT NOT NULL,"
                                       " SENT INTEGER NOT NULL,"
-                                      " NSFW_TYPE INTEGER NOT NULL);");
+                                      " NSFW_TYPE INTEGER NOT NULL,"
+                                      " USERNAME TEXT NULL,"
+                                      " RATING REAL NOT NULL,"
+                                      " DATE TEXT NULL);");
     stmt.execute();
 }
 
@@ -281,17 +297,21 @@ void BotDB::deleteOldReactorPosts(int limit)
     }
 }
 
-bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tags, NSFWType nsfwType)
+bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tags, NSFWType nsfwType,
+                          std::string_view username, float rating, std::string_view date)
 {
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
-    PreparedStatment stmt(
-        connection, "INSERT OR IGNORE INTO reactor_urls (ID, URL, TAGS, SENT, NSFW_TYPE) VALUES (?, ?, ?, 0, ?);");
+    PreparedStatment stmt(connection, "INSERT OR IGNORE INTO reactor_urls (ID, URL, TAGS, SENT, NSFW_TYPE, USERNAME, "
+                                      "RATING, DATE) VALUES (?, ?, ?, 0, ?, ?, ?, ?);");
 
     stmt.bindInt64(1, id);
     stmt.bindText(2, url);
     stmt.bindText(3, tags);
     stmt.bindInt(4, std::to_underlying(nsfwType));
+    username.empty() ? stmt.bindNull(5) : stmt.bindText(5, username);
+    stmt.bindDouble(6, rating);
+    date.empty() ? stmt.bindNull(7) : stmt.bindText(7, date);
 
     stmt.execute();
 
@@ -300,7 +320,7 @@ bool BotDB::newReactorUrl(int64_t id, std::string_view url, std::string_view tag
     return connection.changes();
 }
 
-bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, const char *data)
+bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data)
 {
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
@@ -309,14 +329,7 @@ bool BotDB::newReactorData(int64_t id, ElementType type, std::string_view text, 
     stmt.bindInt64(1, id);
     stmt.bindInt(2, std::to_underlying(type));
     text.empty() ? stmt.bindNull(3) : stmt.bindText(3, text);
-    if (data)
-    {
-        stmt.bindText(4, data);
-    }
-    else
-    {
-        stmt.bindNull(4);
-    }
+    data.empty() ? stmt.bindNull(4) : stmt.bindText(4, data);
 
     stmt.execute();
 
@@ -336,7 +349,8 @@ PostQueue BotDB::getNotSentReactorPosts()
     PostQueue result;
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
-    PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS, NSFW_TYPE FROM reactor_urls WHERE SENT = 0;");
+    PreparedStatment resultSetUrls(
+        connection, "SELECT ID, URL, TAGS, NSFW_TYPE, USERNAME, RATING, DATE FROM reactor_urls WHERE SENT = 0;");
     PreparedStatment resultSetData(connection, "SELECT * FROM reactor_data WHERE ID IN"
                                                "(SELECT ID FROM reactor_urls WHERE SENT = 0) order by ID;");
 
@@ -350,9 +364,8 @@ PostQueue BotDB::getLatestReactorPost()
     PostQueue result;
     Connection connection(_path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX);
 
-    PreparedStatment resultSetUrls(
-        connection,
-        "SELECT ID, URL, TAGS, NSFW_TYPE FROM reactor_urls WHERE NSFW_TYPE < 2 order by ROWID DESC limit 1;");
+    PreparedStatment resultSetUrls(connection, "SELECT ID, URL, TAGS, NSFW_TYPE, USERNAME, RATING, DATE FROM "
+                                               "reactor_urls WHERE NSFW_TYPE < 2 order by ROWID DESC limit 1;");
     PreparedStatment resultSetData(connection,
                                    "SELECT * FROM reactor_data WHERE ID IN"
                                    "(SELECT ID FROM reactor_urls order by ROWID DESC limit 1) order by ID;");
@@ -371,7 +384,9 @@ size_t BotDB::_accumulateMessages(PreparedStatment &resultSetUrls, PreparedStatm
         int64_t id = resultSetUrls.getInt64(0);
 
         std::string tags = resultSetUrls.getText(2);
-        accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1), tags, NSFWType{resultSetUrls.getInt(3)}));
+        accumulator.emplace(new PostHeaderMessage(resultSetUrls.getText(1), tags, NSFWType{resultSetUrls.getInt(3)},
+                                                  resultSetUrls.getText(4), resultSetUrls.getDouble(5),
+                                                  resultSetUrls.getText(6)));
 
         if (resultSetData.isBeforeFirst())
         {

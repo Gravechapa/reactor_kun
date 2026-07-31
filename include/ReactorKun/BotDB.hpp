@@ -24,8 +24,9 @@ class BotDB
     Listeners getListeners();
 
     void deleteOldReactorPosts(int limit);
-    bool newReactorUrl(int64_t id, std::string_view url, std::string_view tags, NSFWType nsfwType);
-    bool newReactorData(int64_t id, ElementType type, std::string_view text, const char *data);
+    bool newReactorUrl(int64_t id, std::string_view url, std::string_view tags, NSFWType nsfwType,
+                       std::string_view username, float rating, std::string_view date);
+    bool newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data);
     void markReactorPostsAsSent();
     PostQueue getNotSentReactorPosts();
     PostQueue getLatestReactorPost();

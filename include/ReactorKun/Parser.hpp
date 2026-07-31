@@ -43,7 +43,9 @@ class Parser
     {
       public:
         virtual bool newReactorUrl([[maybe_unused]] int64_t id, [[maybe_unused]] std::string_view postLinks,
-                                   [[maybe_unused]] std::string_view tags, NSFWType nsfwType)
+                                   [[maybe_unused]] std::string_view tags, [[maybe_unused]] NSFWType nsfwType,
+                                   [[maybe_unused]] std::string username, [[maybe_unused]] float rating,
+                                   [[maybe_unused]] std::string date)
         {
             return true;
         };
@@ -57,7 +59,8 @@ class Parser
     {
       public:
         DBRaw(PostQueue &post) : _post(post) {};
-        bool newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType) override;
+        bool newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                           std::string username, float rating, std::string date) override;
         bool newReactorData(int64_t, ElementType type, std::string_view text, std::string_view data) override;
 
       private:
@@ -67,7 +70,8 @@ class Parser
     class DBSql : public DBInterface
     {
       public:
-        bool newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType) override;
+        bool newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                           std::string username, float rating, std::string date) override;
         bool newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data) override;
 
       private:
