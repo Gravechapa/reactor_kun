@@ -52,14 +52,29 @@ class TgClient
         td_api::int53 chatId, const std::string &text, TextType parseMode = TextType::Plain,
         bool disableWebPagePreview = false, bool disableNotification = false,
         td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
+
     std::optional<td_api::object_ptr<td_api::message>> sendDocument(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&document,
         td_api::object_ptr<td_api::InputFile> &&thumbnail = nullptr, const std::string &text = "",
         TextType parseMode = TextType::Plain, bool disableContentTypeDetection = false,
         bool disableNotification = false, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
+
     std::optional<td_api::object_ptr<td_api::message>> sendPhoto(
         td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&photo, const std::string &text = "",
-        TextType parseMode = TextType::Plain, bool disableNotification = false,
+        TextType parseMode = TextType::Plain, bool hasSpoiler = false, bool disableNotification = false,
+        td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
+
+    std::optional<td_api::object_ptr<td_api::message>> sendVideo(
+        td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&video,
+        td_api::object_ptr<td_api::InputFile> &&thumbnail = nullptr,
+        td_api::object_ptr<td_api::InputFile> &&cover = nullptr, const std::string &text = "",
+        TextType parseMode = TextType::Plain, bool supportsStreaming = true, bool hasSpoiler = false,
+        bool disableNotification = false, td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
+
+    std::optional<td_api::object_ptr<td_api::message>> sendAnimation(
+        td_api::int53 chatId, td_api::object_ptr<td_api::InputFile> &&animation,
+        td_api::object_ptr<td_api::InputFile> &&thumbnail = nullptr, const std::string &text = "",
+        TextType parseMode = TextType::Plain, bool hasSpoiler = false, bool disableNotification = false,
         td_api::object_ptr<td_api::InputMessageReplyTo> &&replyTo = nullptr);
 
     template <size_t N> bool setCommands(const std::array<std::pair<const char *, const char *>, N> &commands);

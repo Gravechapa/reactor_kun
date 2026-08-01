@@ -6,9 +6,10 @@
 #include <csignal>
 #include <functional>
 #include <plog/Log.h>
+#include <regex>
 
 constexpr std::array COMMANDS = std::to_array<std::pair<const char *, const char *>>({
-    {"start", "Подписаться"},
+    {"start", "Подписаться, аргументы(комбинации): swf, nsfw, unsafe. По умолчанию: sfw nsfw"},
     {"stop", "Отписаться"},
     {"latest", "Получить последний пост"},
     {"random", "Получить случайный пост"},
@@ -25,12 +26,9 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     _botName = user.value()->usernames_->editable_username_;
     _client.setCommands(COMMANDS);
 
-    Parser::setup(_config.getReactorDomain(), _config.getReactorUrlPath());
-    if (_config.isProxyEnabledForReactor())
-    {
-        Parser::setProxy(_config);
-    }
-    if (!BotDB::getBotDB().setCurrentReactorPath(urlDecode(_config.getReactorUrlPath())))
+    Parser::setup(_config);
+    if (!BotDB::getBotDB().setCurrentReactorFeed(
+            std::format("{} {}", _config.getReactorPopularity(), _config.getReactorTag())))
     {
         BotDB::getBotDB().clear();
     }
@@ -42,7 +40,7 @@ ReactorKun::ReactorKun(Config &config, std::atomic_bool &stop) : _config(config)
     // Load information about chats https://github.com/tdlib/td/issues/791
     for (auto listener : BotDB::getBotDB().getListeners())
     {
-        _client.getChat(listener);
+        _client.getChat(listener.first);
     }
     _messageStatusChecker = std::jthread(std::bind_front(&ReactorKun::_onMessageStatusUpdate, this));
     _mailer = std::jthread(std::bind_front(&ReactorKun::_mailerHandler, this));
@@ -161,15 +159,76 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     }
 
     PLOGD << "Incoming msg: " << chatId << ", " << username << ", " << firstName << ", " << text;
-    if (text == addCMD)
+    if (text.substr(0, addCMD.size()) == addCMD)
     {
-        if (!BotDB::getBotDB().newListener(chatId, username, firstName, lastName))
+        auto remainText = text.substr(addCMD.size());
+        auto split_view = remainText | std::views::split(' ');
+        bool sfw{false};
+        bool nsfw{false};
+        bool unsafe{false};
+        for (const auto &part : split_view)
+        {
+            auto textPart = std::string_view(part.begin(), part.end());
+            if (textPart == "sfw")
+            {
+                sfw = true;
+            }
+            else if (textPart == "nsfw")
+            {
+                nsfw = true;
+            }
+            else if (textPart == "unsafe")
+            {
+                unsafe = true;
+            }
+        }
+        NSFWFilter nsfwFilter;
+        std::string msg;
+        if (!sfw && !nsfw && !unsafe)
+        {
+            nsfwFilter = NSFWFilter::NSFW;
+            msg = "стандартный фильтр: sfw + nsfw.";
+        }
+        else
+        {
+            if (sfw)
+            {
+                if (unsafe)
+                {
+                    nsfwFilter = NSFWFilter::Unsafe;
+                    msg = "фильтр: sfw + unsafe.";
+                }
+                else if (nsfw)
+                {
+                    nsfwFilter = NSFWFilter::NSFW;
+                    msg = "фильтр: sfw + nsfw.";
+                }
+                else
+                {
+                    nsfwFilter = NSFWFilter::SFW;
+                    msg = "фильтр: только sfw.";
+                }
+            }
+            else
+            {
+                if (unsafe)
+                {
+                    nsfwFilter = NSFWFilter::OnlyUnsafe;
+                    msg = "фильтр: только unsafe.";
+                }
+                else
+                {
+                    nsfwFilter = NSFWFilter::OnlyNSFW;
+                    msg = "фильтр: только nsfw.";
+                }
+            }
+        }
+
+        if (!BotDB::getBotDB().newListener(chatId, username, firstName, lastName, nsfwFilter))
         {
             return;
         }
-        _threadPool.addTextToSend({chatId}, "The Beast is Back");
-        auto post = BotDB::getBotDB().getLatestReactorPost();
-        _threadPool.addPostsToSend({chatId}, post);
+        _threadPool.addTextToSend({chatId}, "Добавил в рассылку, " + msg);
         return;
     }
 
@@ -177,7 +236,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
     {
         if (BotDB::getBotDB().deleteListener(chatId))
         {
-            _threadPool.addTextToSend({chatId}, "Удалил.");
+            _threadPool.addTextToSend({chatId}, "Удалил из рассылки.");
             return;
         }
         return;
@@ -205,7 +264,7 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         if (std::regex_match(postNumber, numberRegex))
         {
             SpinGuard tasksGuard(_mailerTasksLock);
-            _mailerTasks.push(std::pair(chatId, "https://old.reactor.cc/post/" + postNumber));
+            _mailerTasks.push(std::pair(chatId, postNumber));
         }
         else
         {
@@ -241,8 +300,9 @@ void ReactorKun::_onUpdate(td_api::object_ptr<td_api::message> &message)
         {
             text.pop_back();
         }
+
         SpinGuard tasksGuard(_mailerTasksLock);
-        _mailerTasks.push(std::pair(chatId, text));
+        _mailerTasks.push(std::pair(chatId, text.substr(text.rfind('/') + 1)));
     }
     else
     {
@@ -313,31 +373,44 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     std::lock_guard lock(_messagesCacheLock);
     switch (message->getType())
     {
-    case ElementType::HEADER:
-        response = _client.sendMessage(
-            listener,
-            std::string("*Ссылка:* ").append(message->getUrl()).append("\n*Теги:* ").append(message->getTags()),
-            TextType::Markdown, true, true);
+    case ElementType::Header:
+        response = _client.sendMessage(listener,
+                                       std::format("*Пост:* {} *Автор:* {}\n*Теги:* {}\n*Дата:* {} *Рейтинг:* {}",
+                                                   message->getUrl(), message->getUsername(), message->getTags(),
+                                                   message->getDate(),
+                                                   escapeString(std::format("{:.1f}", message->getRating()), ".-")),
+                                       TextType::MarkdownV2, true, true);
         break;
-    case ElementType::TEXT:
+    case ElementType::Poll:
+    case ElementType::CommentHeader:
+        response = _client.sendMessage(listener, message->getUrl().data(), TextType::MarkdownV2, true, true);
+        break;
+    case ElementType::Text:
         response = _client.sendMessage(listener, message->getText().data(), TextType::Plain, true, true);
         break;
     case ElementType::URL:
         response = _client.sendMessage(listener, message->getUrl().data(), TextType::Plain, false, true);
         break;
-    case ElementType::IMG:
-        response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, true);
+    case ElementType::Photo:
+        response = _client.sendPhoto(listener, prepareFile(message.get()), "", TextType::Plain, false, true);
         break;
-    case ElementType::DOCUMENT:
+    case ElementType::Video:
+        response = _client.sendVideo(listener, prepareFile(message.get()), nullptr, nullptr, "", TextType::Plain, true,
+                                     false, true);
+        break;
+    case ElementType::Animation:
         response =
-            _client.sendDocument(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, false, true);
+            _client.sendAnimation(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, false, true);
         break;
-    case ElementType::CENSORSHIP: {
+    case ElementType::Document:
+        response = _client.sendDocument(listener, prepareFile(message.get()), nullptr, "", TextType::Plain, true, true);
+        break;
+    case ElementType::Censorship: {
         auto file = td_api::make_object<td_api::inputFileLocal>("censorship.jpg");
         response = _client.sendPhoto(listener, std::move(file), "", TextType::Plain, true);
         break;
     }
-    case ElementType::FOOTER:
+    case ElementType::Footer:
         // Issue with utf-8 character
         // clang-format off
         response =
@@ -373,14 +446,14 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
         }
         while (!tasks.empty())
         {
-            std::queue<std::shared_ptr<BotMessage>> post;
+            PostQueue post;
             if (tasks.front().second.empty())
             {
                 post = Parser::getRandomPost();
             }
             else
             {
-                post = Parser::getPostByURL(tasks.front().second);
+                post = Parser::getPostById(tasks.front().second);
             }
 
             if (!post.empty())
@@ -411,8 +484,59 @@ void ReactorKun::_mailerHandler(std::stop_token stoken)
             auto posts = BotDB::getBotDB().getNotSentReactorPosts();
             PLOGD << "New messages: " << posts.size();
 
-            _threadPool.addPostsToSend(listeners, posts);
-
+            if (!posts.empty() && posts.front()->getType() != ElementType::Header)
+            {
+                PLOGE << "First message is not a header";
+                while (!posts.empty())
+                {
+                    PLOGE << "Removing element type: " << std::to_underlying(posts.front()->getType());
+                    posts.pop();
+                    if (posts.front()->getType() == ElementType::Header)
+                    {
+                        break;
+                    }
+                }
+            }
+            while (!posts.empty())
+            {
+                std::vector<int64_t> currentListeners;
+                auto nsfwType = posts.front()->getNsfwType();
+                for (auto &listener : listeners)
+                {
+                    switch (nsfwType)
+                    {
+                    case NSFWType::SFW:
+                        if (listener.second == NSFWFilter::SFW || listener.second == NSFWFilter::NSFW ||
+                            listener.second == NSFWFilter::Unsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    case NSFWType::NSFW:
+                        if (listener.second == NSFWFilter::NSFW || listener.second == NSFWFilter::Unsafe ||
+                            listener.second == NSFWFilter::OnlyNSFW || listener.second == NSFWFilter::OnlyUnsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    case NSFWType::Unsafe:
+                        if (listener.second == NSFWFilter::Unsafe || listener.second == NSFWFilter::OnlyUnsafe)
+                        {
+                            currentListeners.push_back(listener.first);
+                        }
+                        break;
+                    }
+                }
+                PostQueue post;
+                post.push(posts.front());
+                posts.pop();
+                while (!posts.empty() && posts.front()->getType() != ElementType::Header)
+                {
+                    post.push(posts.front());
+                    posts.pop();
+                }
+                _threadPool.addPostsToSend(currentListeners, post);
+            }
             BotDB::getBotDB().markReactorPostsAsSent();
             BotDB::getBotDB().deleteOldReactorPosts(1000);
 

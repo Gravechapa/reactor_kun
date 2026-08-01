@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.30)
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 
-project(ReactorKun VERSION 2.2
+project(ReactorKun VERSION 3.0
                     DESCRIPTION "Joyreactor bot"
                     LANGUAGES CXX C)
 add_compile_definitions(REACTORKUN_VERSION="${ReactorKun_VERSION}")
@@ -24,9 +25,6 @@ include("cmake/TDLib.cmake")
 message(STATUS "Fetching Json")
 include("cmake/Json.cmake")
 
-message(STATUS "Fetching ReactorParser")
-include("cmake/ReactorParser.cmake")
-
 message(STATUS "Fetching UTF8String")
 include("cmake/UTF8String.cmake")
 
@@ -35,6 +33,12 @@ include("cmake/Plog.cmake")
 
 message(STATUS "Fetching Cpr")
 include("cmake/Cpr.cmake")
+
+message(STATUS "Fetching Base64")
+include("cmake/Base64.cmake")
+
+message(STATUS "Fetching HtmlParser")
+include("cmake/HtmlParser.cmake")
 ###############################################
 
 include(CheckIPOSupported)
@@ -59,6 +63,7 @@ set_target_properties(reactor_kun reactor_kun_core
     COMPILE_WARNING_AS_ERROR ON
     EXPORT_COMPILE_COMMANDS ON
     BUILD_RPATH "$<IF:$<BOOL:${APPLE}>,@executable_path,\$ORIGIN>"
+    CXX_MODULE_STD ON
 )
 ######################## Copies data files to a binary directory ########################
 set(DATA_FILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/")

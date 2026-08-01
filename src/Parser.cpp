@@ -1,17 +1,28 @@
 #include "Parser.hpp"
 #include "AuxiliaryFunctions.hpp"
-#include "BotDB.hpp"
-#include "RustReactorParser.h"
+#include "TgLimits.hpp"
+#include <base64.hpp>
+#include <chrono>
 #include <fstream>
+#include <html.hpp>
 #include <plog/Log.h>
+#include <regex>
+#include <utf8_string.hpp>
+import JoyReactorApi;
 
-std::string Parser::_domain;
-std::string Parser::_urlPath;
-int Parser::_overload = 2000;
+const std::map<std::string_view, std::string_view> Parser::_domains{
+    {"modern", "https://joyreactor.cc"}, {"new", "https://reactor.cc"}, {"old", "https://old.reactor.cc"}};
+
+static constexpr size_t MaxFilenameSize = 225;
+static constexpr std::string_view MarkdownUrlEscape{R"()\)"};
+static constexpr std::string_view MarkdownEscape{R"(_*[]()~`>#+-=|{}.!)"};
 
 std::mutex Parser::_lock;
 std::chrono::high_resolution_clock::time_point Parser::_timePoint = std::chrono::high_resolution_clock::now();
 const std::chrono::milliseconds Parser::_delay = std::chrono::milliseconds(10);
+
+std::string Parser::_tag{};
+std::string Parser::_popularity{};
 
 const cpr::Redirect Parser::_noRedirect{cpr::Redirect{0, false, false, cpr::PostRedirectFlags::POST_ALL}};
 cpr::Proxies Parser::_proxies{};
@@ -19,55 +30,731 @@ cpr::ProxyAuthentication Parser::_proxyAuth{};
 cpr::Cookies Parser::_cookies;
 cpr::Header Parser::_header;
 
-bool newReactorUrlRaw(int64_t, const char *url, const char *tags, void *userData)
+bool Parser::DBRaw::newReactorUrl(int64_t, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                                  std::string username, float rating, std::string date)
 {
-    static_cast<std::queue<std::shared_ptr<BotMessage>> *>(userData)->emplace(new PostHeaderMessage(url, tags));
+    _post.emplace(new PostHeaderMessage(postLinks, tags, nsfwType, username, rating, date));
     return true;
 }
 
-bool newReactorDataRaw(int64_t, int32_t type, const char *text, const char *data, void *userData)
+bool Parser::DBRaw::newReactorData(int64_t, ElementType type, std::string_view text, std::string_view data)
 {
-    auto accumulator = static_cast<std::queue<std::shared_ptr<BotMessage>> *>(userData);
-    std::string string(text);
-
-    if (!string.empty())
+    if (!text.empty())
     {
-        textSplitter(string, *accumulator);
+        textSplitter(text, _post);
     }
-    if (!data)
+    if (type != ElementType::Text)
     {
-        data = "";
-    }
-    if (static_cast<ElementType>(type) != ElementType::TEXT)
-    {
-        accumulator->emplace(new DataMessage(static_cast<ElementType>(type), data));
+        _post.emplace(new DataMessage(type, data));
     }
     return true;
 }
 
-void reactorLog(const char *text)
+bool Parser::DBSql::newReactorUrl(int64_t id, std::string_view postLinks, std::string_view tags, NSFWType nsfwType,
+                                  std::string username, float rating, std::string date)
 {
-    PLOGW << text;
+    return _db.newReactorUrl(id, postLinks, tags, nsfwType, username, rating, date);
 }
 
-bool newReactorUrl(int64_t id, const char *url, const char *tags, void *)
+bool Parser::DBSql::newReactorData(int64_t id, ElementType type, std::string_view text, std::string_view data)
 {
-    return BotDB::getBotDB().newReactorUrl(id, url, tags);
+    return _db.newReactorData(id, type, text, data);
+}
+bool Parser::_checkApiError(nlohmann::json &resp)
+{
+    auto errors = resp.find("errors");
+    if (errors == resp.end())
+    {
+        return false;
+    }
+    PLOGE << "Joyrector Api error:";
+    for (auto &msg : *errors)
+    {
+        auto text = msg.find("message");
+        if (text != msg.end())
+        {
+            PLOGE << *text;
+        }
+        auto loc = msg.find("locations");
+        if (loc != msg.end())
+        {
+            PLOGE << loc->dump();
+        }
+    }
+    return true;
+}
+Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterface &&db)
+{
+
+    constexpr int8_t maxTags = 15;
+    constexpr int8_t maxFilePrefixTags = 3;
+    constexpr std::string_view logPrefix{"Post parser: "};
+    ////////////////////////////////////////post id/////////////////////////////////////////////////
+    auto postId = postNode.find("id");
+    if (postId == postNode.end() || !postId->is_string())
+    {
+        PLOGE << logPrefix << "no 'id' or it's not a string";
+        return PostParserStatus::Error;
+    }
+    std::string idString;
+    try
+    {
+        idString = base64::from_base64(postId->get<std::string>());
+    }
+    catch (std::runtime_error e)
+    {
+        PLOGE << logPrefix << std::format("'id' has bad base64 encoding '{}'", postId->get<std::string>());
+        return PostParserStatus::Error;
+    }
+    static const auto postIdRegex = std::regex(R"(^Post:\d+$)");
+    if (!std::regex_match(idString, postIdRegex))
+    {
+        PLOGE << logPrefix << std::format("wrong post id format '{}', should be 'Post:<id>'", idString);
+        return PostParserStatus::Error;
+    }
+    // can be a fixed value, but I decided that this way is less error prone
+    int64_t id = std::stoll(idString.substr(idString.find(':') + 1));
+    PLOGD << logPrefix << "post id " << id;
+    ////////////////////////////////////////post tags///////////////////////////////////////////////
+    auto postTags = postNode.find("tags");
+    std::string tags;
+    std::string filePrefix;
+    if (postTags != postNode.end() && postTags->is_array())
+    {
+        std::vector<std::string> tagNames;
+        for (auto &tag : *postTags)
+        {
+            auto tagName = tag.find("name");
+            if (tagName != tag.end() && tagName->is_string())
+            {
+                tagNames.push_back(*tagName);
+            }
+            else
+            {
+                PLOGW << logPrefix << "tag has no 'name' or it's not a string";
+            }
+        }
+        // prepare tags for the header
+        auto sizeLimit = tagNames.size() > maxTags ? maxTags : tagNames.size();
+        for (size_t i = 0; i < sizeLimit; ++i)
+        {
+            auto preparedTag = prepareTag(tagNames[i]);
+            preparedTag = std::format("/tag/{}", urlEncode(preparedTag, "()"));
+            preparedTag = escapeString(preparedTag, MarkdownUrlEscape);   // for markdown v2
+            auto escapedName = escapeString(tagNames[i], MarkdownEscape); // for markdown v2
+            tags += std::format("[{1}]({2}{0}) [🅝]({3}{0}) [🅞]({4}{0}) ", preparedTag, escapedName,
+                                _domains.at("modern"), _domains.at("new"), _domains.at("old"));
+        }
+        if (sizeLimit != tagNames.size())
+        {
+            tags += R"(\.\.\.)";
+        }
+        // prepare tags for files prefix
+        sizeLimit = tagNames.size() > maxFilePrefixTags ? maxFilePrefixTags : tagNames.size();
+        for (size_t i = 0; i < sizeLimit; ++i)
+        {
+            auto tmp = tagNames[i] + "-";
+            std::replace(tmp.begin(), tmp.end(), ' ', '-');
+            // Remove characters that can cause issues with fs
+            tmp.erase(
+                std::remove_if(tmp.begin(), tmp.end(),
+                               [](char c) { return std::string_view(R"(/<>:"\|?*)").find(c) != std::string::npos; }),
+                tmp.end());
+            filePrefix += tmp;
+        }
+    }
+    else
+    {
+        PLOGW << logPrefix << "no 'tags' or it's not an array";
+    }
+    if (filePrefix.empty())
+    {
+        filePrefix = "picture-";
+    }
+    else if (filePrefix.size() > MaxFilenameSize) // filesystems don't like this shit
+    {
+        UTF8string utfFilePrefix{filePrefix};
+        while (utfFilePrefix.utf8_size() > MaxFilenameSize)
+        {
+            utfFilePrefix.utf8_pop();
+        }
+        filePrefix = utfFilePrefix.utf8_sstring();
+        filePrefix += '-';
+    }
+    ////////////////////////////////////////post nsfw/unsafe////////////////////////////////////////
+    NSFWType nsfwType;
+    auto postNsfw = postNode.find("nsfw");
+    auto postUnsafe = postNode.find("unsafe");
+    if (postNsfw == postNode.end() || !postNsfw->is_boolean() || postUnsafe == postNode.end() ||
+        !postUnsafe->is_boolean())
+    {
+        PLOGE << logPrefix << "no 'nsfw'/'unsafe' or they are not booleans, falling back to unsafe";
+        nsfwType = NSFWType::Unsafe;
+    }
+    else
+    {
+        if (*postUnsafe == true)
+        {
+            nsfwType = NSFWType::Unsafe;
+        }
+        else if (*postNsfw == true)
+        {
+            nsfwType = NSFWType::NSFW;
+        }
+        else
+        {
+            nsfwType = NSFWType::SFW;
+        }
+    }
+    static const auto getHeaderCommon = [](nlohmann::json &node,
+                                           std::string_view logPrefix) -> std::tuple<std::string, float, std::string> {
+        ////////////////////////////////////////user////////////////////////////////////////////////
+        std::string username{};
+        auto userNode = node.find("user");
+        if (userNode == node.end() || !userNode->is_object())
+        {
+            PLOGE << logPrefix << "no 'user' or it's not an object";
+        }
+        else
+        {
+            auto userUsernameNode = userNode->find("username");
+            if (userUsernameNode == userNode->end() || !userUsernameNode->is_string())
+            {
+                PLOGE << logPrefix << "'user' has no 'username' or it's not a string";
+            }
+            else
+            {
+                username = *userUsernameNode;
+                auto preparedUsername = prepareTag(username);
+                preparedUsername = std::format("/user/{}", urlEncode(preparedUsername, "()"));
+                preparedUsername = escapeString(preparedUsername, MarkdownUrlEscape); // for markdown v2
+                auto escapedUsername = escapeString(username, MarkdownEscape);        // for markdown v2
+                username = std::format("[{1}]({2}{0}) [🅝]({3}{0}) [🅞]({4}{0}) ", preparedUsername, escapedUsername,
+                                       _domains.at("modern"), _domains.at("new"), _domains.at("old"));
+            }
+        }
+        ////////////////////////////////////////rating//////////////////////////////////////////////
+        float rating{0.0f};
+        auto ratingNode = node.find("rating");
+        if (ratingNode == node.end() || !ratingNode->is_number())
+        {
+            PLOGW << logPrefix << "no 'rating' or it's not a number";
+        }
+        else
+        {
+            rating = *ratingNode;
+        }
+        ////////////////////////////////////////date////////////////////////////////////////////////
+        std::string date{};
+        auto createdAtNode = node.find("createdAt");
+        if (createdAtNode == node.end() || !createdAtNode->is_string())
+        {
+            PLOGE << logPrefix << "no 'createdAt' or it's not a string";
+        }
+        else
+        {
+            std::chrono::sys_time<std::chrono::seconds> timePoint;
+            std::istringstream is(createdAtNode->get<std::string>());
+            // ISO 8601 with offset
+            is >> std::chrono::parse("%Y-%m-%dT%H:%M:%S%z", timePoint);
+            if (is.fail())
+            {
+                PLOGE << logPrefix << "date parse failed" << *createdAtNode;
+            }
+            else
+            {
+                date = std::format("![{0:%d}\\.{0:%m}\\.{0:%y}, {0:%R}](tg://time?unix={1}&format=dt)", timePoint,
+                                   std::chrono::system_clock::to_time_t(timePoint));
+            }
+        }
+        return {username, rating, date};
+    };
+    auto [username, rating, date] = getHeaderCommon(postNode, logPrefix);
+
+    ////////////////////////////////////////Add new url/////////////////////////////////////////////
+    auto links = std::format("[Modern]({1}/post/{0}) [New]({2}/post/{0}) [Old]({3}/post/{0}) ", id,
+                             _domains.at("modern"), _domains.at("new"), _domains.at("old"));
+    if (!db.newReactorUrl(id, links, tags, nsfwType, username, rating, date))
+    {
+        return PostParserStatus::Exists;
+    }
+    auto const parseCommonBody = [&db, &id, &filePrefix](nlohmann::json &bodyNode, std::string_view logPrefix,
+                                                         bool comment) -> bool {
+        ////////////////////////////////////////text////////////////////////////////////////////////
+        auto textNode = bodyNode.find("text");
+        if (textNode == bodyNode.end() || !textNode->is_string())
+        {
+            PLOGE << logPrefix << "no 'text' or it's not a string";
+            return false;
+        }
+        static const auto reactorRedirectRegex =
+            std::regex(R"(^https?://(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/redirect\?url=.*)");
+        static const auto reactorUrlRegax = std::regex(R"(^(/post/\d+|/tag/[^/?]+)$)");
+        html::parser p;
+        html::node_ptr node = p.parse(*textNode);
+        if (!node->select("img[alt='Censorship'],img[alt='Copywrite']").empty())
+        {
+            db.newReactorData(id, ElementType::Censorship, "🚫Censorship/Copywrite🚫", "");
+            return true;
+        }
+        for (auto linkTag : node->select("a[href]"))
+        {
+            auto link = linkTag->get_attr("href");
+            html::node *textNode{nullptr};
+            linkTag->walk([&textNode](html::node &n) {
+                if (textNode)
+                {
+                    return false;
+                }
+                else if (n.type_node == html::node_t::text)
+                {
+                    textNode = &n;
+                    return false;
+                }
+                return true; // scan child tags
+            });
+            if (!textNode)
+            {
+                continue;
+            }
+            if (link != textNode->content)
+            {
+                if (std::regex_match(link, reactorRedirectRegex))
+                {
+                    link = urlDecode(link.substr(link.find("url=") + 4));
+                }
+                else if (std::regex_match(link, reactorUrlRegax))
+                {
+                    link = std::format("{}{}", _domains.at("modern"), link);
+                }
+                if (link != textNode->content)
+                {
+                    textNode->content += std::format("\"{}\"", link);
+                }
+            }
+            else if (std::regex_match(link, reactorRedirectRegex))
+            {
+                link = urlDecode(link.substr(link.find("url=") + 4));
+                textNode->content = link;
+            }
+        }
+        auto text = node->to_text();
+        trim(text);
+        text = unescapeHtml(text); // mitigate imperfect parsing
+        ////////////////////////////////////////attributes//////////////////////////////////////////
+        static constexpr std::string_view attrMagic = "&attribute_insert_";
+        std::vector<std::pair<int32_t, std::reference_wrapper<nlohmann::json>>> attrs;
+        auto attrsNode = bodyNode.find("attributes");
+        if (attrsNode != bodyNode.end() && attrsNode->is_array())
+        {
+            for (auto &attrNode : *attrsNode)
+            {
+                auto insertIdNode = attrNode.find("insertId");
+                if (insertIdNode == attrNode.end() || !insertIdNode->is_number_integer())
+                {
+                    /////////////////lagacy posts/////////////////
+                    if (text.find(attrMagic) == std::string::npos)
+                    {
+                        text += "&attribute_insert_1&";
+                        attrs.push_back({1, attrNode});
+                        PLOGD << logPrefix << std::format("lagacy post {}, no insert id", id);
+                    }
+                    else
+                    {
+                        PLOGE << logPrefix << "attribute has no 'insertId' or it's not an integer";
+                        return false;
+                    }
+                }
+                else
+                {
+                    attrs.push_back({*insertIdNode, attrNode});
+                }
+            }
+            std::sort(attrs.begin(), attrs.end(), [](auto &a, auto &b) { return a.first < b.first; });
+        }
+        else
+        {
+            PLOGW << logPrefix << "no 'attributes' or it's not an array";
+        }
+        while (true)
+        {
+            size_t currentTextEnd;
+            size_t attrPos = text.find(attrMagic);
+            if (attrPos == std::string::npos)
+            {
+                break;
+            }
+            if (attrPos != 0 && text[attrPos - 1] == '\n')
+            {
+                currentTextEnd = attrPos - 1;
+            }
+            else
+            {
+                currentTextEnd = attrPos;
+            }
+            auto currentText = text.substr(0, currentTextEnd);
+            trim(currentText);
+            size_t attrIdStart = attrPos + attrMagic.size();
+            size_t attrIdEnd = text.find('&', attrIdStart);
+            auto attrStr = text.substr(attrPos, attrIdEnd - attrPos + 1);
+            static const auto attrMagicRegex = std::regex(R"(^&attribute_insert_\d+&$)");
+            if (!std::regex_match(attrStr, attrMagicRegex))
+            {
+                PLOGE << logPrefix
+                      << std::format("wrong attribute magic '{}', should be '&attribute_insert_<id>&'", attrStr);
+                return false;
+            }
+            auto attrId = std::stoul(text.substr(attrIdStart, attrIdEnd - attrIdStart));
+            text = text.substr(attrIdEnd + 1);
+            if (attrId > attrs.size())
+            {
+                PLOGE << logPrefix
+                      << std::format("there is less attribute then inserts, {} < current id {}", attrs.size(), attrId);
+                return false;
+            }
+            auto attrNode = attrs[attrId - 1].second.get();
+            auto attrTypeNode = attrNode.find("type");
+            if (attrTypeNode == attrNode.end() || !attrTypeNode->is_string())
+            {
+                PLOGE << logPrefix << "attribute has no 'type' or it's not a string";
+                continue;
+            }
+            auto getArrtValue = [&logPrefix](nlohmann::json &node) -> std::string {
+                auto valueNode = node.find("value");
+                if (valueNode == node.end() || !valueNode->is_string())
+                {
+                    PLOGE << logPrefix << "attribute has no 'value' or it's not a string";
+                    return "";
+                }
+                return *valueNode;
+            };
+            auto fallback = [&logPrefix, &currentText, &db, &id]() {
+                PLOGE << logPrefix << "attribute parse issues, falling back to text";
+                if (!currentText.empty())
+                {
+                    db.newReactorData(id, ElementType::Text, currentText, "");
+                }
+            };
+            if (*attrTypeNode == "YOUTUBE")
+            {
+                auto val = getArrtValue(attrNode);
+                if (!val.empty())
+                {
+                    db.newReactorData(id, ElementType::URL, currentText,
+                                      std::format("https://www.youtube.com/watch?v={}", val));
+                    continue;
+                }
+            }
+            else if (*attrTypeNode == "VIMEO")
+            {
+                auto val = getArrtValue(attrNode);
+                if (!val.empty())
+                {
+                    db.newReactorData(id, ElementType::URL, currentText,
+                                      std::format("https://player.vimeo.com/video/{}", val));
+                    continue;
+                }
+            }
+            else if (*attrTypeNode == "COUB")
+            {
+                auto val = getArrtValue(attrNode);
+                if (!val.empty())
+                {
+                    db.newReactorData(id, ElementType::URL, currentText,
+                                      std::format("https://www.coub.com/view/{}", val));
+                    continue;
+                }
+            }
+            else if (*attrTypeNode == "SOUNDCLOUD")
+            {
+                auto val = getArrtValue(attrNode);
+                if (!val.empty())
+                {
+                    auto scNode = nlohmann::json::parse(val);
+                    auto urlNode = scNode.find("url");
+                    if (urlNode != scNode.end() && urlNode->is_string())
+                    {
+                        db.newReactorData(
+                            id, ElementType::URL, currentText,
+                            std::format("https://w.soundcloud.com/player/?url={}", urlNode->get<std::string>()));
+                        continue;
+                    }
+                    PLOGE << logPrefix << "soundcloud attribute 'value' has no 'url' or it's not a string";
+                }
+            }
+            else if (*attrTypeNode == "BANDCAMP")
+            {
+                auto val = getArrtValue(attrNode);
+                if (!val.empty())
+                {
+                    auto bcNode = nlohmann::json::parse(val);
+                    auto urlNode = bcNode.find("url");
+                    if (urlNode != bcNode.end() && urlNode->is_string())
+                    {
+                        db.newReactorData(
+                            id, ElementType::URL, currentText,
+                            std::format("https://bandcamp.com/EmbeddedPlayer/{}", urlNode->get<std::string>()));
+                        continue;
+                    }
+                    PLOGE << logPrefix << "bandcamp attribute 'value' has no 'url' or it's not a string";
+                }
+            }
+            else if (*attrTypeNode == "PICTURE")
+            {
+                auto attrImgNode = attrNode.find("image");
+                if (attrImgNode == attrNode.end() || !attrImgNode->is_object())
+                {
+                    PLOGE << logPrefix << "attribute has no 'image' or it's not an object";
+                    fallback();
+                    continue;
+                }
+                auto arrtImgTypeNode = attrImgNode->find("type");
+                if (arrtImgTypeNode == attrImgNode->end() || !arrtImgTypeNode->is_string())
+                {
+                    PLOGE << logPrefix << "attribute 'image' has no 'type' or it's not a string";
+                    fallback();
+                    continue;
+                }
+                auto arrtIdNode = attrNode.find("id");
+                if (arrtIdNode == attrNode.end() || !arrtIdNode->is_string())
+                {
+                    PLOGE << logPrefix << "attribute has no 'id' or it's not a string";
+                    fallback();
+                    continue;
+                }
+                std::string attrIdString;
+                try
+                {
+                    attrIdString = base64::from_base64(arrtIdNode->get<std::string>());
+                }
+                catch (std::runtime_error e)
+                {
+                    PLOGE << logPrefix << "attribute 'id' has bad base64 encoding " << arrtIdNode->get<std::string>();
+                    fallback();
+                    continue;
+                }
+                const auto attrIdRegex = comment ? std::regex(R"(^CommentAttributePicture:\d+$)")
+                                                 : std::regex(R"(^PostAttributePicture:\d+$)");
+                if (std::regex_match(attrIdString, attrIdRegex))
+                {
+                    auto contentType = comment ? "comment" : "post";
+                    auto attrId = attrIdString.substr(attrIdString.find(':') + 1);
+                    if (*arrtImgTypeNode == "PNG" || *arrtImgTypeNode == "JPEG" || *arrtImgTypeNode == "BMP" ||
+                        *arrtImgTypeNode == "TIFF" || *arrtImgTypeNode == "WEBP")
+                    {
+                        uint32_t width{std::numeric_limits<uint32_t>::max()};
+                        uint32_t height{std::numeric_limits<uint32_t>::max()};
+                        auto arrtImgWidthNode = attrImgNode->find("width");
+                        auto arrtImgHeightNode = attrImgNode->find("height");
+                        if (arrtImgWidthNode != attrImgNode->end() && arrtImgWidthNode->is_number_unsigned() &&
+                            arrtImgHeightNode != attrImgNode->end() && arrtImgHeightNode->is_number_unsigned())
+                        {
+                            width = *arrtImgWidthNode;
+                            height = *arrtImgHeightNode;
+                        }
+                        else
+                        {
+                            PLOGW << logPrefix
+                                  << "attribute 'image' has no 'width'/'height' or they're not unsigned ints";
+                        }
+
+                        std::string ext = *arrtImgTypeNode;
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        std::string dataUrl =
+                            std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                        if (*arrtImgTypeNode == "JPEG" && width <= TgLimits::maxPhotoDimension &&
+                            height <= TgLimits::maxPhotoDimension)
+                        {
+                            db.newReactorData(id, ElementType::Photo, currentText, dataUrl);
+                            continue;
+                        }
+                        db.newReactorData(id, ElementType::Document, currentText, dataUrl);
+                        continue;
+                    }
+                    else if (*arrtImgTypeNode == "MP4" || *arrtImgTypeNode == "WEBM" || *arrtImgTypeNode == "GIF")
+                    {
+                        bool hasVideo{false};
+                        auto arrtImgHasVideoNode = attrImgNode->find("hasVideo");
+                        if (arrtImgHasVideoNode != attrImgNode->end() && arrtImgHasVideoNode->is_boolean())
+                        {
+                            hasVideo = *arrtImgHasVideoNode;
+                        }
+                        else
+                        {
+                            PLOGW << logPrefix << "attribute 'image' has no 'hasVideo' or it's not a bool";
+                        }
+                        std::string ext;
+                        if (hasVideo)
+                        {
+                            ext = "mp4";
+                        }
+                        else
+                        {
+                            ext = *arrtImgTypeNode;
+                            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        }
+                        if (ext == "gif")
+                        {
+                            std::string dataUrl =
+                                std::format("{}/{}/full/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                            db.newReactorData(id, ElementType::Animation, currentText, dataUrl);
+                        }
+                        else
+                        {
+                            std::string dataUrl =
+                                std::format("{}/{}/mp4/{}{}.{}", _imgBaseUrl, contentType, filePrefix, attrId, ext);
+                            db.newReactorData(id, ElementType::Video, currentText, dataUrl);
+                        }
+                        continue;
+                    }
+                    PLOGW << logPrefix << "unknown attribute 'image' 'type' " << *arrtImgTypeNode;
+                }
+                else
+                {
+                    PLOGE << logPrefix
+                          << std::format("wrong attribute 'image' 'id' '{}', should be '{}'", attrIdString,
+                                         comment ? "CommentAttributePicture:<id>" : "PostAttributePicture:<id>");
+                }
+            }
+            else
+            {
+                PLOGW << logPrefix << "unknown attribute type " << *attrTypeNode;
+            }
+            fallback();
+        }
+        trim(text);
+        if (!text.empty())
+        {
+            db.newReactorData(id, ElementType::Text, text, "");
+        }
+        return true;
+    };
+    if (!parseCommonBody(postNode, logPrefix, false))
+    {
+        return PostParserStatus::Error;
+    }
+    ////////////////////////////////////////post poll///////////////////////////////////////////////
+    auto pollNode = postNode.find("poll");
+    if (pollNode != postNode.end() && pollNode->is_object())
+    {
+        auto pollQuestionNode = pollNode->find("question");
+        if (pollQuestionNode != pollNode->end() && pollQuestionNode->is_string())
+        {
+            auto pollAnswersNode = pollNode->find("answers");
+            if (pollAnswersNode != pollNode->end() && pollAnswersNode->is_array())
+            {
+                uint64_t totalVotes{0};
+                std::vector<std::pair<std::string, uint64_t>> answers{};
+                for (auto &answerNode : *pollAnswersNode)
+                {
+                    auto pollAnswerAnswerNode = answerNode.find("answer");
+                    auto pollAnswerCountNode = answerNode.find("count");
+                    if (pollAnswerAnswerNode != answerNode.end() && pollAnswerAnswerNode->is_string() &&
+                        pollAnswerCountNode != answerNode.end() && pollAnswerCountNode->is_number_unsigned())
+                    {
+                        totalVotes += pollAnswerCountNode->get<uint64_t>();
+                        answers.push_back(
+                            {pollAnswerAnswerNode->get<std::string>(), pollAnswerCountNode->get<uint64_t>()});
+                    }
+                    else
+                    {
+                        PLOGW << logPrefix
+                              << "'poll' answer has no 'answer'/'count' or it's not a string/unsigned integer";
+                    }
+                }
+                std::string poll =
+                    std::format("*{}*\n", escapeString(pollQuestionNode->get<std::string>(), MarkdownEscape));
+                for (auto &answer : answers)
+                {
+                    float percent = (answer.second * 100) / static_cast<float>(totalVotes);
+                    auto barLenth = std::lrint(percent / 10);
+                    std::string bar;
+                    bar.reserve(barLenth * 2 + (10 - barLenth)); // 2 - symbol size
+                    for (auto i = 0; i < barLenth; ++i)
+                    {
+                        bar.append("▉");
+                    }
+                    for (auto i = 0; i < 10 - barLenth; ++i)
+                    {
+                        bar.append("▁");
+                    }
+                    poll +=
+                        std::format("{}\n\\[{}\\] *{}* \\({}%\\)\n", escapeString(answer.first, MarkdownEscape), bar,
+                                    answer.second, escapeString(std::format("{:0.1f}", percent), MarkdownEscape));
+                }
+                db.newReactorData(id, ElementType::Poll, "", poll);
+            }
+            else
+            {
+                PLOGW << logPrefix << "'poll' has no 'answers' or it's not an array";
+            }
+        }
+        else
+        {
+            PLOGE << logPrefix << "'poll' has no 'question' or it's not a string";
+        }
+    }
+    ////////////////////////////////////////post comments///////////////////////////////////////////
+    auto bestCommentsNode = postNode.find("bestComments");
+    if (bestCommentsNode == postNode.end() || !bestCommentsNode->is_array())
+    {
+        PLOGE << logPrefix << "no 'bestComments' or it's not an array";
+        return PostParserStatus::Error;
+    }
+    constexpr std::string_view comLogPrefix{"Comment parser: "};
+    for (auto commentNode = bestCommentsNode->rbegin(); commentNode != bestCommentsNode->rend(); ++commentNode)
+    {
+        auto commentIdNode = commentNode->find("id");
+        if (commentIdNode == commentNode->end() || !commentIdNode->is_string())
+        {
+            PLOGE << comLogPrefix << "no 'id' or it's not a string";
+            return PostParserStatus::Error;
+        }
+        std::string commentIdString;
+        try
+        {
+            commentIdString = base64::from_base64(commentIdNode->get<std::string>());
+        }
+        catch (std::runtime_error e)
+        {
+            PLOGE << comLogPrefix
+                  << std::format("'id' has bad base64 encoding '{}'", commentIdNode->get<std::string>());
+            return PostParserStatus::Error;
+        }
+        static const auto commentIdRegex = std::regex(R"(^Comment:\d+$)");
+        if (!std::regex_match(commentIdString, commentIdRegex))
+        {
+            PLOGE << comLogPrefix
+                  << std::format("wrong comment id format '{}', should be 'Comment:<id>'", commentIdString);
+            return PostParserStatus::Error;
+        }
+        int64_t commentId = std::stoll(commentIdString.substr(commentIdString.find(':') + 1));
+        auto [commentUsername, commentRating, commentDate] = getHeaderCommon(*commentNode, comLogPrefix);
+        auto commentLinks =
+            std::format("[\\#{4}]({1}/post/{0}#comment{4}) [🅝]({2}/post/{0}#comment{4}) [🅞]({3}/post/{0}#comment{4}) ",
+                        id, _domains.at("modern"), _domains.at("new"), _domains.at("old"), commentId);
+        auto commentHeader =
+            std::format("*Коммент:* {} *Автор:* {}\n*Дата:* {} *Рейтинг:* {}", commentLinks, commentUsername,
+                        commentDate, escapeString(std::format("{:.1f}", commentRating), ".-"));
+        db.newReactorData(id, ElementType::CommentHeader, "", commentHeader);
+        if (!parseCommonBody(*commentNode, comLogPrefix, true))
+        {
+            return PostParserStatus::Error;
+        }
+    }
+    return PostParserStatus::Ok;
 }
 
-bool newReactorData(int64_t id, int32_t type, const char *text, const char *data, void *)
+void Parser::setup(Config &config)
 {
-    return BotDB::getBotDB().newReactorData(id, static_cast<ElementType>(type), text, data);
-}
-
-void Parser::setup(std::string_view domain, std::string_view urlPath)
-{
-    _domain = domain;
-    _urlPath = urlPath;
-    _header = cpr::Header{{"Referer", _domain}};
-    _cookies = _request(domain, _noRedirect, RequestType::Head).cookies;
-    _cookies.emplace_back({"sfw", "1"});
-    set_log_callback(&reactorLog);
+    _tag = config.getReactorTag();
+    _popularity = config.getReactorPopularity();
+    _header = cpr::Header{{"Referer", _domains.at("modern").data()}};
+    _cookies = _request(_domains.at("modern"), RequestType::Head, _noRedirect).cookies;
+    if (config.isProxyEnabledForReactor())
+    {
+        setProxy(config);
+    }
 }
 
 void Parser::setProxy(Config &config)
@@ -86,15 +773,33 @@ void Parser::init()
     update(10);
 }
 
-std::queue<std::shared_ptr<BotMessage>> Parser::getPostByURL(std::string_view link, bool redirect)
+PostQueue Parser::getPostById(std::string_view id)
 {
-    std::queue<std::shared_ptr<BotMessage>> post;
+    PostQueue post;
 
-    std::string html = _request(link, redirect ? cpr::Redirect{} : _noRedirect).text;
-
-    if (!get_page_content(link.data(), html.c_str(), &newReactorUrlRaw, &newReactorDataRaw, nullptr, &post, false))
+    auto query = JoyReactorApi::postQuery(id);
+    auto resp = _request(_reactorApiUrl, RequestType::Post, cpr::Redirect{}, nullptr, query);
+    auto jsonResp = nlohmann::json::parse(resp.text);
+    if (_checkApiError(jsonResp))
     {
-        PLOGW << "There were some issues when processing the page: " << link;
+        PLOGE << std::format("Post({}) request failed", id);
+        return post;
+    }
+    auto postData = jsonResp.find("data");
+    if (postData == jsonResp.end() || !postData->is_object())
+    {
+        PLOGE << std::format("Post({}) request: no 'data' or it's not an object", id);
+        return post;
+    }
+    auto postNode = postData->find("node");
+    if (postNode == postData->end() || !postNode->is_object())
+    {
+        PLOGE << std::format("Post({}) request: no 'node' or it's not an object", id);
+        return post;
+    }
+    if (_parsePost(*postNode, DBRaw{post}) != PostParserStatus::Ok)
+    {
+        PLOGW << std::format("There were some issues during the processing of the post({}) ", id);
     }
 
     if (!post.empty())
@@ -105,46 +810,111 @@ std::queue<std::shared_ptr<BotMessage>> Parser::getPostByURL(std::string_view li
     return post;
 }
 
-std::queue<std::shared_ptr<BotMessage>> Parser::getRandomPost()
+PostQueue Parser::getRandomPost()
 {
-    std::string link = _domain + "/random";
-
-    return getPostByURL(link, true);
+    static const std::string link = std::format("{}/random", _domains.at("new"));
+    auto resp = _request(link, RequestType::Head);
+    std::string url{resp.url};
+    static const auto randomRegex =
+        std::regex(R"(^(https?://)?(([-a-zA-Z0-9%_]+\.)?reactor|joyreactor)\.cc/post/\d+\?next=random$)");
+    if (std::regex_match(url, randomRegex))
+    {
+        auto start = url.rfind('/') + 1;
+        return getPostById(url.substr(start, url.rfind('?') - start));
+    }
+    else
+    {
+        PLOGE << "Random post: got bad url from reactor" << url;
+        return PostQueue{};
+    }
 }
 
-void Parser::update(int32_t lim)
+void Parser::update(uint32_t lim)
 {
-    std::string nextUrl = _domain + _urlPath;
-
-    NextPageUrl nextPageUrl;
-
+    uint32_t page{0};
+    uint32_t coincidenceCount{0};
+    uint32_t totalProcessed{0};
     while (true)
     {
-        auto resp = _request(nextUrl);
-        std::string html = resp.text;
-        if (!resp.cookies.empty())
+        auto query = JoyReactorApi::postPagerQuery(_tag, _popularity, page);
+        auto resp = _request(_reactorApiUrl, RequestType::Post, cpr::Redirect{}, nullptr, query);
+        auto jsonResp = nlohmann::json::parse(resp.text);
+        const std::string logPrefix = std::format("Page({}) Tag({}) Popularity({}) request: ", page, _tag, _popularity);
+        if (_checkApiError(jsonResp))
         {
-            _cookies = resp.cookies;
-            _cookies.emplace_back({"sfw", "1"});
+            PLOGE << logPrefix << "request failed";
+            return;
         }
-
-        if (!get_page_content(nextUrl.c_str(), html.c_str(), &newReactorUrl, &newReactorData, &nextPageUrl, nullptr,
-                              false))
+        auto pagerData = jsonResp.find("data");
+        if (pagerData == jsonResp.end() || !pagerData->is_object())
         {
-            PLOGW << "There were some issues when processing the page: " << nextUrl;
-            if (!nextPageUrl.url)
+            PLOGE << logPrefix << "no 'data' or it's not an object";
+            return;
+        }
+        auto tagNode = pagerData->find("tag");
+        if (tagNode == pagerData->end() || !tagNode->is_object())
+        {
+            PLOGE << logPrefix << "no 'tag' or it's not an object";
+            return;
+        }
+        auto postPagerNode = tagNode->find("postPager");
+        if (postPagerNode == tagNode->end() || !postPagerNode->is_object())
+        {
+            PLOGE << logPrefix << "no 'postPager' or it's not an object";
+            return;
+        }
+        auto postPagerPostsNode = postPagerNode->find("posts");
+        if (postPagerPostsNode == postPagerNode->end() || !postPagerPostsNode->is_array())
+        {
+            PLOGE << logPrefix << "no 'postPager' 'posts' or it's not an array";
+            return;
+        }
+        if (!page)
+        {
+            auto postPagerCountNode = postPagerNode->find("count");
+            if (postPagerCountNode == postPagerNode->end() || !postPagerCountNode->is_number_unsigned())
             {
-                PLOGD << html;
+                PLOGE << logPrefix << "no 'postPager' 'count' or it's not an unsigned integer";
                 return;
             }
+            uint64_t totalCount = *postPagerCountNode;
+            page = (totalCount / 10) + ((totalCount % 10) != 0);
+            PLOGD << logPrefix << std::format("total count({}) page({})", totalCount, page);
         }
-        nextUrl = nextPageUrl.url;
-        get_page_content_cleanup(&nextPageUrl);
-
-        if (nextPageUrl.coincidenceCounter > 3 || nextPageUrl.counter > _overload ||
-            (lim > 0 && nextPageUrl.counter >= lim))
+        for (auto &postNode : *postPagerPostsNode)
         {
-            PLOGD << "Update completed: " << nextPageUrl.coincidenceCounter << ", " << nextPageUrl.counter;
+            switch (_parsePost(postNode, DBSql{}))
+            {
+            case PostParserStatus::Exists:
+                ++coincidenceCount;
+                break;
+            case PostParserStatus::Error:
+                PLOGW << logPrefix << std::format("there were some issues during the processing of the post");
+                break;
+            case PostParserStatus::Ok:
+                break;
+            }
+        }
+        totalProcessed += postPagerPostsNode->size();
+        // It seems like reactor actually adds a new page when there's more than 4(or so) new posts.
+        if (postPagerPostsNode->size() > 10)
+        {
+            PLOGD << logPrefix << std::format("posts overflow({}) skiping page", postPagerPostsNode->size());
+            if (page <= 1)
+            {
+                return;
+            }
+            --page;
+        }
+        if (page <= 1)
+        {
+            return;
+        }
+        --page;
+
+        if (coincidenceCount > 3 || totalProcessed > _overload || (lim > 0 && totalProcessed >= lim))
+        {
+            PLOGD << "Update completed: " << coincidenceCount << ", " << totalProcessed;
             return;
         }
     }
@@ -152,7 +922,7 @@ void Parser::update(int32_t lim)
 
 ContentInfo Parser::getContentInfo(std::string_view link)
 {
-    auto resp = _request(link, _noRedirect, RequestType::Head);
+    auto resp = _request(link, RequestType::Head, _noRedirect);
     ContentInfo contentInfo;
     std::string size = resp.header["Content-Length"];
     try
@@ -176,7 +946,7 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
         PLOGE << "Can't open file: " << filePath;
         return false;
     }
-    _request(link, _noRedirect, RequestType::Download, &file);
+    _request(link, RequestType::Download, _noRedirect, &file);
     if (file.fail())
     {
         PLOGE << "An error occurred during file \"" << filePath << "\" writing";
@@ -185,8 +955,8 @@ bool Parser::getContent(std::string_view link, std::string_view filePath)
     return true;
 }
 
-cpr::Response Parser::_request(std::string_view url, cpr::Redirect redirect, RequestType type,
-                               std::ofstream *const file)
+cpr::Response Parser::_request(std::string_view url, RequestType type, cpr::Redirect redirect,
+                               std::ofstream *const file, std::string_view query)
 {
     std::unique_lock lockGuard(_lock);
     wait(_delay, _timePoint);
@@ -205,11 +975,19 @@ cpr::Response Parser::_request(std::string_view url, cpr::Redirect redirect, Req
             r = cpr::Head(cpr::Url{url}, _proxies, _proxyAuth, redirect, _cookies, _header);
             break;
         case RequestType::Download:
-            r = cpr::Download(*file, cpr::Url{url}, _proxies, _proxyAuth, redirect, _header);
+            r = cpr::Download(*file, cpr::Url{url}, _proxies, _proxyAuth, redirect, _cookies, _header);
+            break;
+        case RequestType::Post:
+            r = cpr::Post(cpr::Url{url}, _proxies, _proxyAuth, _cookies, cpr::Body{query},
+                          cpr::Header{{"Content-Type", "application/json"}});
             break;
         }
         if (r.status_code == 200 || (300 <= r.status_code && r.status_code < 400))
         {
+            if (!r.cookies.empty())
+            {
+                _cookies = r.cookies;
+            }
             if (r.status_code != 200)
             {
                 PLOGW << std::format("Url {} redirected {}", url, r.status_code);

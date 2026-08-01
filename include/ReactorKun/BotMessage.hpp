@@ -1,18 +1,30 @@
 #pragma once
 #include <cstdint>
 #include <memory>
+#include <queue>
 #include <string>
 
 enum class ElementType : int32_t
 {
-    TEXT = 0,
-    IMG,
-    DOCUMENT,
+    Header = 0,
+    Footer,
+    Error,
+    Censorship,
+    Text,
     URL,
-    CENSORSHIP,
-    HEADER,
-    FOOTER,
-    Error
+    Document,
+    Photo,
+    Video,
+    Animation,
+    CommentHeader,
+    Poll
+};
+
+enum class NSFWType : int32_t
+{
+    SFW = 0,
+    NSFW,
+    Unsafe
 };
 
 class BotMessage
@@ -24,6 +36,10 @@ class BotMessage
     virtual std::string getFilePath() const;
     virtual std::string_view getTags() const;
     virtual std::string_view getSignature() const;
+    virtual NSFWType getNsfwType() const;
+    virtual std::string_view getUsername() const;
+    virtual float getRating() const;
+    virtual std::string_view getDate() const;
 
   protected:
     BotMessage(ElementType type);
@@ -65,16 +81,25 @@ class PostHeaderMessage : public BotMessage
 {
   public:
     PostHeaderMessage();
-    PostHeaderMessage(std::string_view url, std::string_view tags);
+    PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType, std::string username,
+                      float rating, std::string date);
     PostHeaderMessage(PostHeaderMessage &&source) noexcept;
     PostHeaderMessage &operator=(PostHeaderMessage &&source) noexcept;
 
     std::string_view getUrl() const override;
     std::string_view getTags() const override;
+    NSFWType getNsfwType() const override;
+    std::string_view getUsername() const override;
+    float getRating() const override;
+    std::string_view getDate() const override;
 
   private:
-    std::string _url{""};
-    std::string _tags{""};
+    std::string _url{};
+    std::string _tags{};
+    NSFWType _nsfwType;
+    std::string _username{};
+    float _rating{0.0f};
+    std::string _date{};
 
     PostHeaderMessage(const PostHeaderMessage &) = delete;
     const PostHeaderMessage &operator=(const PostHeaderMessage &) = delete;
@@ -89,3 +114,5 @@ class PostFooterMessage : public BotMessage
   private:
     std::string_view _signature;
 };
+
+using PostQueue = std::queue<std::shared_ptr<BotMessage>>;

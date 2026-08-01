@@ -120,12 +120,12 @@ void ThreadPool::_scheduler(std::stop_token stoken)
     }
 }
 
-void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners, std::queue<std::shared_ptr<BotMessage>> &posts)
+void ThreadPool::addPostsToSend(std::vector<int64_t> &&listeners, PostQueue &posts)
 {
     addPostsToSend(listeners, posts);
 }
 
-void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners, std::queue<std::shared_ptr<BotMessage>> &posts)
+void ThreadPool::addPostsToSend(std::vector<int64_t> &listeners, PostQueue &posts)
 {
     std::lock_guard scheduleGuard(_scheduleLock);
     while (!posts.empty())
@@ -150,7 +150,7 @@ void ThreadPool::addTextToSend(std::vector<int64_t> &&listeners, std::string_vie
 
 void ThreadPool::addImgToSend(std::vector<int64_t> &&listeners, std::string_view url)
 {
-    std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::IMG, url));
+    std::shared_ptr<BotMessage> sharedMsg(new DataMessage(ElementType::Photo, url));
     std::lock_guard scheduleGuard(_scheduleLock);
     for (auto listener : listeners)
     {

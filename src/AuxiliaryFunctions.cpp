@@ -1,91 +1,12 @@
 #include "AuxiliaryFunctions.hpp"
 #include "TgLimits.hpp"
-#include <fstream>
 #include <iomanip>
 #include <plog/Log.h>
 #include <utf8_string.hpp>
 
-#define readbyte(a, b)                                                                                                 \
-    do                                                                                                                 \
-        if (((a) = (b).get()) == EOF)                                                                                  \
-            return Dimension();                                                                                        \
-    while (0)
-#define readword(a, b)                                                                                                 \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        int32_t cc_ = 0, dd_ = 0;                                                                                      \
-        if ((cc_ = (b).get()) == EOF || (dd_ = (b).get()) == EOF)                                                      \
-            return Dimension();                                                                                        \
-        (a) = (cc_ << 8) + (dd_);                                                                                      \
-    } while (0)
-
-Dimension getJpegResolution(std::string_view path) // http://carnage-melon.tom7.org/stuff/jpegsize.html
+void textSplitter(std::string_view text, PostQueue &accumulator)
 {
-    std::ifstream file(path.data(), std::ofstream::binary);
-    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    int32_t marker = 0;
-
-    if (file.get() != 0xFF || file.get() != 0xD8)
-    {
-        return Dimension();
-    }
-
-    Dimension result;
-    while (true)
-    {
-        readbyte(marker, file);
-        if (marker != 0xFF)
-        {
-            return result;
-        }
-        do
-        {
-            readbyte(marker, file);
-        } while (marker == 0xFF);
-
-        switch (marker)
-        {
-        case 0xC0:
-        case 0xC1:
-        case 0xC2:
-        case 0xC3:
-        case 0xC5:
-        case 0xC6:
-        case 0xC7:
-        case 0xC9:
-        case 0xCA:
-        case 0xCB:
-        case 0xCD:
-        case 0xCE:
-        case 0xCF: {
-            file.ignore(3);
-            readword(result.height, file);
-            readword(result.width, file);
-
-            return result;
-        }
-        case 0xDA:
-        case 0xD9:
-            return result;
-        default: {
-            int32_t length;
-
-            readword(length, file);
-            if (length < 2)
-            {
-                return result;
-            }
-            length -= 2;
-            file.ignore(length);
-            break;
-        }
-        }
-    }
-}
-
-void textSplitter(std::string &text, std::queue<std::shared_ptr<BotMessage>> &accumulator)
-{
-    UTF8string utf8Text(text);
+    UTF8string utf8Text(text.data());
     size_t pos = 0;
     size_t skip = 0;
     while (pos < utf8Text.utf8_length())
@@ -154,4 +75,81 @@ std::string urlEncode(const std::string &value, const std::string &additionalLeg
         }
     }
     return ss.str();
+}
+
+std::string replace(std::string_view text, std::string_view list, bool escape)
+{
+    std::string res;
+    size_t pos = 0;
+    for (size_t i = pos; i < text.size(); ++i)
+    {
+        std::string replace;
+        // dosen't work well with modern reactor
+        //  if (tag[i] == ' ')
+        //  {
+        //      replace = '+';
+        //  }
+        if (list.find(text[i]) != std::string::npos)
+        {
+            if (escape)
+            {
+                replace = '\\';
+                replace += text[i];
+            }
+            else
+            {
+                replace = urlEncode(std::string(1, text[i]));
+            }
+        }
+
+        if (!replace.empty())
+        {
+            res += text.substr(pos, i - pos);
+            res += replace;
+            pos = i + 1;
+        }
+    }
+    res += text.substr(pos);
+    return res;
+}
+
+std::string prepareTag(std::string_view tag)
+{
+    std::string_view listToEncode{"/+?%"};
+    return replace(tag, listToEncode, false);
+}
+
+std::string escapeString(std::string_view text, std::string_view symbolsToEscape)
+{
+    return replace(text, symbolsToEscape, true);
+}
+
+void trim(std::string &str)
+{
+    while (str.starts_with(' ') || str.starts_with('\n'))
+    {
+        str.erase(0, 1); // Erase from the start
+    }
+    while (str.ends_with(' ') || str.ends_with('\n'))
+    {
+        str.erase(str.size() - 1, 1); // Erase from the end
+    }
+}
+
+std::string unescapeHtml(std::string_view text)
+{
+    std::vector<std::pair<std::string, char>> htmlEntities = {
+        {"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'}, {"&quot;", '"'}, {"&apos;", '\''}};
+
+    std::string result{text};
+    for (const auto &entity : htmlEntities)
+    {
+        size_t pos = 0;
+        while ((pos = result.find(entity.first, pos)) != std::string::npos)
+        {
+            result.replace(pos, entity.first.length(), 1, entity.second);
+            pos++;
+        }
+    }
+    return result;
 }

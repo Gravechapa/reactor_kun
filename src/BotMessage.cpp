@@ -44,7 +44,27 @@ std::string_view BotMessage::getSignature() const
     return "";
 }
 
-TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::TEXT), _text(text)
+NSFWType BotMessage::getNsfwType() const
+{
+    return NSFWType::SFW;
+}
+
+std::string_view BotMessage::getUsername() const
+{
+    return "";
+}
+
+float BotMessage::getRating() const
+{
+    return 0.0f;
+}
+
+std::string_view BotMessage::getDate() const
+{
+    return "";
+}
+
+TextMessage::TextMessage(std::string_view text) : BotMessage(ElementType::Text), _text(text)
 {
 }
 
@@ -55,8 +75,12 @@ std::string_view TextMessage::getText() const
 
 DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(type), _url(url)
 {
-    if (_type == ElementType::IMG || _type == ElementType::DOCUMENT)
+    switch (_type)
     {
+    case ElementType::Document:
+    case ElementType::Photo:
+    case ElementType::Video:
+    case ElementType::Animation: {
         int32_t fileSizeLimit;
         int32_t photoSizeLimit;
         if (_downloadingEnable)
@@ -76,21 +100,23 @@ DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(ty
 
         ContentInfo info = Parser::getContentInfo(_url);
 
-        if (info.size == 0 || info.type.empty())
+        if (info.size == -1 || info.type.empty())
         {
             return;
         }
 
         switch (_type)
         {
-        case ElementType::IMG:
+        case ElementType::Photo:
             if (info.size <= photoSizeLimit && info.type == "image/jpeg")
             {
                 break;
             }
-            _type = ElementType::DOCUMENT;
+            _type = ElementType::Document;
             [[fallthrough]];
-        case ElementType::DOCUMENT: {
+        case ElementType::Video:
+        case ElementType::Animation:
+        case ElementType::Document: {
             if (info.size > fileSizeLimit)
             {
                 _fileName.clear();
@@ -109,18 +135,12 @@ DataMessage::DataMessage(ElementType type, std::string_view url) : BotMessage(ty
                 ;
             if (status == FileStatus::READY)
             {
-                if (_type == ElementType::IMG)
-                {
-                    auto res = getJpegResolution(getFilePath());
-                    if (res.width > TgLimits::maxPhotoDimension || res.height > TgLimits::maxPhotoDimension)
-                    {
-                        _type = ElementType::DOCUMENT;
-                    }
-                }
                 return;
             }
         }
         _fileName.clear();
+    }
+    default:
     }
 }
 
@@ -146,16 +166,18 @@ std::string DataMessage::getFilePath() const
     return FileManager::getInstance().getDir().string() + "/" + _fileName;
 }
 
-PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage() : BotMessage(ElementType::Header)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags)
-    : BotMessage(ElementType::HEADER), _url(url), _tags(tags)
+PostHeaderMessage::PostHeaderMessage(std::string_view url, std::string_view tags, NSFWType nsfwType,
+                                     std::string username, float rating, std::string date)
+    : BotMessage(ElementType::Header), _url(url), _tags(tags), _nsfwType(nsfwType), _username(username),
+      _rating(rating), _date(date)
 {
 }
 
-PostHeaderMessage::PostHeaderMessage(PostHeaderMessage &&source) noexcept : BotMessage(ElementType::HEADER)
+PostHeaderMessage::PostHeaderMessage(PostHeaderMessage &&source) noexcept : BotMessage(ElementType::Header)
 {
     *this = std::move(source);
 }
@@ -164,6 +186,10 @@ PostHeaderMessage &PostHeaderMessage::operator=(PostHeaderMessage &&source) noex
 {
     _url = std::move(source._url);
     _tags = std::move(source._tags);
+    _nsfwType = source._nsfwType;
+    _username = std::move(source._username);
+    _rating = source._rating;
+    _date = std::move(source._date);
     return *this;
 }
 
@@ -177,7 +203,27 @@ std::string_view PostHeaderMessage::getTags() const
     return _tags;
 }
 
-PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::FOOTER)
+NSFWType PostHeaderMessage::getNsfwType() const
+{
+    return _nsfwType;
+}
+
+std::string_view PostHeaderMessage::getUsername() const
+{
+    return _username;
+}
+
+float PostHeaderMessage::getRating() const
+{
+    return _rating;
+}
+
+std::string_view PostHeaderMessage::getDate() const
+{
+    return _date;
+}
+
+PostFooterMessage::PostFooterMessage(std::string_view tags) : BotMessage(ElementType::Footer)
 {
     const static std::regex reg(R"(^.*(вирус|война|war|virus).*$)");
     static Signature sig;
