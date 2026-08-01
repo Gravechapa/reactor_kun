@@ -375,12 +375,13 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
     {
     case ElementType::Header:
         response = _client.sendMessage(listener,
-                                       std::format("*Ссылка:* {} *Автор:* {}\n*Теги:* {}\n*Дата:* {} *Рейтинг:* {}",
+                                       std::format("*Пост:* {} *Автор:* {}\n*Теги:* {}\n*Дата:* {} *Рейтинг:* {}",
                                                    message->getUrl(), message->getUsername(), message->getTags(),
                                                    message->getDate(),
                                                    escapeString(std::format("{:.1f}", message->getRating()), ".-")),
                                        TextType::MarkdownV2, true, true);
         break;
+    case ElementType::Poll:
     case ElementType::CommentHeader:
         response = _client.sendMessage(listener, message->getUrl().data(), TextType::MarkdownV2, true, true);
         break;

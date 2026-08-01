@@ -633,6 +633,67 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
     {
         return PostParserStatus::Error;
     }
+    ////////////////////////////////////////post poll///////////////////////////////////////////////
+    auto pollNode = postNode.find("poll");
+    if (pollNode != postNode.end() && pollNode->is_object())
+    {
+        auto pollQuestionNode = pollNode->find("question");
+        if (pollQuestionNode != pollNode->end() && pollQuestionNode->is_string())
+        {
+            auto pollAnswersNode = pollNode->find("answers");
+            if (pollAnswersNode != pollNode->end() && pollAnswersNode->is_array())
+            {
+                uint64_t totalVotes{0};
+                std::vector<std::pair<std::string, uint64_t>> answers{};
+                for (auto &answerNode : *pollAnswersNode)
+                {
+                    auto pollAnswerAnswerNode = answerNode.find("answer");
+                    auto pollAnswerCountNode = answerNode.find("count");
+                    if (pollAnswerAnswerNode != answerNode.end() && pollAnswerAnswerNode->is_string() &&
+                        pollAnswerCountNode != answerNode.end() && pollAnswerCountNode->is_number_unsigned())
+                    {
+                        totalVotes += pollAnswerCountNode->get<uint64_t>();
+                        answers.push_back(
+                            {pollAnswerAnswerNode->get<std::string>(), pollAnswerCountNode->get<uint64_t>()});
+                    }
+                    else
+                    {
+                        PLOGW << logPrefix
+                              << "'poll' answer has no 'answer'/'count' or it's not a string/unsigned integer";
+                    }
+                }
+                std::string poll =
+                    std::format("*{}*\n", escapeString(pollQuestionNode->get<std::string>(), MarkdownEscape));
+                for (auto &answer : answers)
+                {
+                    float percent = (answer.second * 100) / static_cast<float>(totalVotes);
+                    auto barLenth = std::lrint(percent / 10);
+                    std::string bar;
+                    bar.reserve(barLenth * 2 + (10 - barLenth)); // 2 - symbol size
+                    for (auto i = 0; i < barLenth; ++i)
+                    {
+                        bar.append("▉");
+                    }
+                    for (auto i = 0; i < 10 - barLenth; ++i)
+                    {
+                        bar.append("▁");
+                    }
+                    poll +=
+                        std::format("{}\n\\[{}\\] *{}* \\({}%\\)\n", escapeString(answer.first, MarkdownEscape), bar,
+                                    answer.second, escapeString(std::format("{:0.1f}", percent), MarkdownEscape));
+                }
+                db.newReactorData(id, ElementType::Poll, "", poll);
+            }
+            else
+            {
+                PLOGW << logPrefix << "'poll' has no 'answers' or it's not an array";
+            }
+        }
+        else
+        {
+            PLOGE << logPrefix << "'poll' has no 'question' or it's not a string";
+        }
+    }
     ////////////////////////////////////////post comments///////////////////////////////////////////
     auto bestCommentsNode = postNode.find("bestComments");
     if (bestCommentsNode == postNode.end() || !bestCommentsNode->is_array())
@@ -673,7 +734,7 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
             std::format("[\\#{4}]({1}/post/{0}#comment{4}) [🅝]({2}/post/{0}#comment{4}) [🅞]({3}/post/{0}#comment{4}) ",
                         id, _domains.at("modern"), _domains.at("new"), _domains.at("old"), commentId);
         auto commentHeader =
-            std::format("*Ссылка:* {} *Автор:* {}\n*Дата:* {} *Рейтинг:* {}", commentLinks, commentUsername,
+            std::format("*Коммент:* {} *Автор:* {}\n*Дата:* {} *Рейтинг:* {}", commentLinks, commentUsername,
                         commentDate, escapeString(std::format("{:.1f}", commentRating), ".-"));
         db.newReactorData(id, ElementType::CommentHeader, "", commentHeader);
         if (!parseCommonBody(*commentNode, comLogPrefix, true))

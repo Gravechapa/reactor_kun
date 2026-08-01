@@ -16,7 +16,8 @@ enum class ElementType : int32_t
     Photo,
     Video,
     Animation,
-    CommentHeader
+    CommentHeader,
+    Poll
 };
 
 enum class NSFWType : int32_t
