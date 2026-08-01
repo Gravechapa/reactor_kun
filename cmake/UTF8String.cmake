@@ -4,14 +4,12 @@ FetchContent_Declare(
     GIT_TAG            4e677cd3d7986dc1406f3b50e64ecaec68dd6b88
     SOURCE_DIR         "${CMAKE_SOURCE_DIR}/thirdparty/utf8_string"
     BINARY_DIR         "${CMAKE_BINARY_DIR}/utf8_string-bin"
-    INSTALL_COMMAND    ""
-    CONFIGURE_COMMAND  ""
 )
 
-FetchContent_GetProperties(utf8_string)
-if(NOT utf8_string_POPULATED)
-    FetchContent_Populate(utf8_string)
-
-    include_directories("${utf8_string_SOURCE_DIR}/src")
-    set(UTF8_STRING_SOURCE "${utf8_string_SOURCE_DIR}/src/utf8_iterator.cpp" "${utf8_string_SOURCE_DIR}/src/utf8_string.cpp")
-endif()
+FetchContent_MakeAvailable(utf8_string)
+include_directories("${utf8_string_SOURCE_DIR}/src")
+add_library(utf8_string "${utf8_string_SOURCE_DIR}/src/utf8_iterator.cpp" "${utf8_string_SOURCE_DIR}/src/utf8_string.cpp"
+                        "${utf8_string_SOURCE_DIR}/src/utf8_iterator.hpp" "${utf8_string_SOURCE_DIR}/src/utf8_string.hpp")
+set_target_properties(utf8_string PROPERTIES
+                      ARCHIVE_OUTPUT_DIRECTORY "${utf8_string_BINARY_DIR}"
+                      LIBRARY_OUTPUT_DIRECTORY "${utf8_string_BINARY_DIR}")
