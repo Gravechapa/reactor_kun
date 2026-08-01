@@ -381,6 +381,9 @@ bool ReactorKun::_sendMessage(int64_t listener, std::shared_ptr<BotMessage> &mes
                                                    escapeString(std::format("{:.1f}", message->getRating()), ".-")),
                                        TextType::MarkdownV2, true, true);
         break;
+    case ElementType::CommentHeader:
+        response = _client.sendMessage(listener, message->getUrl().data(), TextType::MarkdownV2, true, true);
+        break;
     case ElementType::Text:
         response = _client.sendMessage(listener, message->getText().data(), TextType::Plain, true, true);
         break;

@@ -41,6 +41,7 @@ const std::string_view JoyReactorApi::_queryPostBody{
         }
       }
       bestComments{
+        id
         createdAt
         user{
             username
