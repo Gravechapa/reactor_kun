@@ -666,7 +666,11 @@ Parser::PostParserStatus Parser::_parsePost(nlohmann::json &postNode, DBInterfac
                     std::format("*{}*\n", escapeString(pollQuestionNode->get<std::string>(), MarkdownEscape));
                 for (auto &answer : answers)
                 {
-                    float percent = (answer.second * 100) / static_cast<float>(totalVotes);
+                    float percent{0.0f};
+                    if (totalVotes)
+                    {
+                        percent = (answer.second * 100) / static_cast<float>(totalVotes);
+                    }
                     auto barLenth = std::lrint(percent / 10);
                     std::string bar;
                     bar.reserve(barLenth * 2 + (10 - barLenth)); // 2 - symbol size
